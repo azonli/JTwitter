@@ -87,6 +87,11 @@ public class URLConnectionHttpClient implements Twitter.IHttpClient,
 	 * This policy handles most Twitter server glitches.
 	 */
 	boolean retryOnError;
+	
+	@Override
+	public boolean isRetryOnError() {
+		return retryOnError;
+	}
 
 	protected int timeout = dfltTimeOutMilliSecs;
 
@@ -614,6 +619,7 @@ public class URLConnectionHttpClient implements Twitter.IHttpClient,
 	 * workaround: when presented with a 50X server error, the system will wait
 	 * 1/2 a second and make a second attempt.
 	 */
+	@Override
 	public void setRetryOnError(boolean retryOnError) {
 		this.retryOnError = retryOnError;
 	}

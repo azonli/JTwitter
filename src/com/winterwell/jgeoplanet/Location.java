@@ -27,7 +27,7 @@ public class Location implements Serializable {
 	 * Construct a new location object. Handy for computing distances.
 	 * 
 	 * @param latitude the latitiude of the location. Must be >-90 and <90
-	 * @param longitude the longitude of the location. Must be >-180 and <180
+	 * @param longitude the longitude of the location. Will be normalised to between >-180 and <180
 	 * @throws IllegalArgumentException if the co-ordinates aren't valid
 	 */
 	public Location(double latitude, double longitude) {
@@ -38,6 +38,7 @@ public class Location implements Serializable {
 		if (longitude < -180 || longitude > 180) {
 			longitude = longitude % 360;
 			if (longitude > 180) longitude = 360 - longitude;
+			else if (longitude < -180) longitude = longitude + 360;
 			assert longitude >= -180 || longitude <= 180 : longitude;
 		}
 		this.latitude = latitude;
@@ -106,11 +107,12 @@ public class Location implements Serializable {
 		if (lat>90) lat = 90;
 		else if (lat<-90) lat = -90;
 		// TODO East/West
-		if (metresEast!=0) throw new RuntimeException("TODO!");
-		double lng = longitude + 0;
+		// Argh! A TODO exception in the centre of a critical method :(
+		//if (metresEast!=0) throw new RuntimeException("TODO!");
+		double lng = longitude + metresEast;
 		// [-180, 180] is the preferred range
-		while (lat>180) lat -= 360;
-		while (lat<-180) lat += 360;
+		while (lng>180) lng -= 360;
+		while (lng<-180) lng += 360;
 		return new Location(lat, lng);
 	}
 

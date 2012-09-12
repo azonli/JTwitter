@@ -213,7 +213,8 @@ public class TwitterException extends RuntimeException {
 
 	/**
 	 * Problems reading the JSON returned by Twitter. This should not normally
-	 * occur! This indicates either a change in the API, or a bug in JTwitter.
+	 * occur! This indicates either a change in the API, a Twitter server glitch, 
+	 * or a bug in JTwitter.
 	 */
 	public static class Parsing extends TwitterException {
 		private static final long serialVersionUID = 1L;
@@ -223,7 +224,7 @@ public class TwitterException extends RuntimeException {
 		 */
 		private static String clip(String json, int len) {
 			return json == null ? null : json.length() <= len ? json : json
-					.substring(len) + "...";
+					.substring(0, len) + "...";
 		}
 
 		public Parsing(String json, JSONException e) {

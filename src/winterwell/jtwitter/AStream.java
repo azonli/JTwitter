@@ -75,10 +75,20 @@ public abstract class AStream implements Closeable {
 		boolean processTweet(ITweet tweet);
 	}
 
+	/**
+	 * What, Twitter had an outage? Here are the details.
+	 * @author daniel
+	 */
 	public static final class Outage implements Serializable {
 		private static final long serialVersionUID = 1L;
-		final BigInteger sinceId;
-		final long untilTime;
+		/**
+		 * The id received just before the outage. i.e. start
+		 */
+		public final BigInteger sinceId;
+		/**
+		 * The Java timecode when the stream went back online. i.e. end
+		 */
+		public final long untilTime;
 
 		public Outage(BigInteger sinceId, long untilTime) {
 			super();
@@ -88,7 +98,7 @@ public abstract class AStream implements Closeable {
 
 		@Override
 		public String toString() {
-			return "[id:" + sinceId + " to time:" + untilTime + "]";
+			return "Outage[id:" + sinceId + " to time:" + untilTime + "]";
 		}
 	}
 
@@ -320,7 +330,7 @@ public abstract class AStream implements Closeable {
 				throw (TwitterException) e;
 //			Doesn't catch anything: if (con!=null && client instanceof URLConnectionHttpClient) {
 //				((URLConnectionHttpClient) client).processError(con);
-//			}						
+//			}			
 			throw new TwitterException(e);
 		}
 	}
@@ -413,6 +423,7 @@ public abstract class AStream implements Closeable {
 
 	/**
 	 * @return the recent system events, such as "delete this status".
+	 * @see #popSystemEvents()
 	 */
 	public final List<Object[]> getSystemEvents() {
 		read();
@@ -463,6 +474,9 @@ public abstract class AStream implements Closeable {
 	/**
 	 * @return the recent events. Calling this will clear the list of events.
 	 * never null
+	 * <p>
+	 * Thread safety: If two threads both call popEvents / getEvents, then there is a race condition,
+	 * and the caller should synchronize appropriately.
 	 */
 	public final List<TwitterEvent> popEvents() {
 		List evs = getEvents();
@@ -471,11 +485,16 @@ public abstract class AStream implements Closeable {
 	}
 
 	/**
-	 * @return the recent system events, such as "delete this status". Calling
-	 *         this will clear the list of system events.
-	 *         <p>
-	 *         This also lists reconnect events, with the number of seconds
-	 *         taken to reconnect.
+	 * <h4>System Events</h4>
+	 * ["delete", Status] This tweet has been deleted from Twitter<br>
+	 * ["limit", int skipped_tweets] See https://dev.twitter.com/discussions/2655<br>
+	 * ["exception", Exception]<br>
+	 * ["reconnect", milliseconds_offline]
+	 * 
+	 * @return the recent system events. Calling this will clear the list of system events.
+	 * <p>
+	 * Thread safety: If two threads both call popSystemEvents / getSystemEvents, then there is a race condition,
+	 * and the caller should synchronize appropriately.
 	 */
 	public final List<Object[]> popSystemEvents() {
 		List<Object[]> evs = getSystemEvents();
@@ -485,11 +504,13 @@ public abstract class AStream implements Closeable {
 
 	/**
 	 * @return the recent events. Calling this will clear the list of tweets.
+	 * <p>
+	 * Thread safety: If two threads both call popTweets / getTweets, then there is a race condition,
+	 * and the caller should synchronize appropriately.
 	 */
 	public final List<ITweet> popTweets() {
 		List<ITweet> ts = getTweets();
-		// TODO is there a race condition here? 
-		// Only if two threads are using pop & getTweets
+		// TODO is 
 		tweets = new ArrayList();
 		return ts;
 	}
