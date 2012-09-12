@@ -3,3 +3,6 @@ jtwitter.jar
 boblog
 bin
 doc
+.settings
+ant
+binlocal
