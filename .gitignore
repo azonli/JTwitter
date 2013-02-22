@@ -9,3 +9,4 @@ binlocal
 /.gradle
 /.classpath
 /.project
+/build
