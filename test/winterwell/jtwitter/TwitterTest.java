@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.math.BigInteger;
+import java.text.SimpleDateFormat;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -24,7 +25,7 @@ import winterwell.jtwitter.Twitter.KRequestType;
 import winterwell.jtwitter.Twitter.TweetEntity;
 import winterwell.jtwitter.TwitterException.E403;
 import winterwell.jtwitter.TwitterException.E404;
-import winterwell.utils.NoUTR;
+//import winterwell.utils.NoUTR;
 import winterwell.utils.Printer;
 import winterwell.utils.Utils;
 import winterwell.utils.containers.Containers;
@@ -76,7 +77,7 @@ extends TestCase // Comment out to remove the JUnit dependency
 		try {
 			ts = new TwitterStream(jtwit);
 			ts.connect();
-			Utils.sleep(500);
+			Thread.sleep(500);
 			for (ITweet status : ts.popTweets()) {
 				String s = ((Status) status).getSource();
 				Containers.plus(distro, s, 1);
@@ -288,6 +289,7 @@ extends TestCase // Comment out to remove the JUnit dependency
 	}
 	
 	
+	/*
 	public void testDateFilteredSearch() {
 		Twitter tw = newTestTwitter();
 		Time s = new Time().minus(5, TUnit.DAY);
@@ -305,6 +307,7 @@ extends TestCase // Comment out to remove the JUnit dependency
 			assert time.isBefore(e) : time;
 		}
 	}
+	*/
 	
 	public void testSinceId() {
 //		investigating URI uri = new URI("http://api.twitter.com/1/statuses/replies.json?since_id=22090245178&?since_id=22090245178&");
@@ -510,7 +513,7 @@ extends TestCase // Comment out to remove the JUnit dependency
 		Twitter tw = newTestTwitter();
 		Status s1 = tw.getStatus();
 		tw.destroyStatus(s1.getId());
-		Utils.sleep(1000);
+		Thread.sleep(1000);
 		Status s0 = tw.getStatus();
 		assert s0.id != s1.id : "Status id should differ from that of destroyed status";
 
@@ -718,7 +721,7 @@ extends TestCase // Comment out to remove the JUnit dependency
 	}
 	
 	
-	@NoUTR
+	//@NoUTR
 	public void _testAuthUser() {
 		OAuthSignpostClient client = new OAuthSignpostClient(
 		OAuthSignpostClient.JTWITTER_OAUTH_KEY,
@@ -798,8 +801,9 @@ extends TestCase // Comment out to remove the JUnit dependency
 	public void testSendMention2() throws InterruptedException{
 		Twitter jtwit = newTestTwitter();
 		Twitter jtwit2 = newTestTwitter2();
-		Time time = new Time().plus(1, TUnit.HOUR);
-		String timeStr = (time.getHour()+1) + " " + time.getMinutes() + " " + time.getSeconds();
+		//Time time = new Time().plus(1, TUnit.HOUR);
+		//String timeStr = (time.getHour()+1) + " " + time.getMinutes() + " " + time.getSeconds();
+		String time = new SimpleDateFormat("HH mm ss").format(new Date());
 		int salt = new Random().nextInt(100000);
 		String messageText = "Hoopla!" + salt;
 		
@@ -870,8 +874,9 @@ extends TestCase // Comment out to remove the JUnit dependency
 	public void testDirectMessage2() throws InterruptedException{
 		Twitter jtwit = newTestTwitter();
 		Twitter jtwit2 = newTestTwitter2();
-		Time time = new Time().plus(1, TUnit.HOUR);
-		String timeStr = (time.getHour()+1) + " " + time.getMinutes() + " " + time.getSeconds();
+		//Time time = new Time().plus(1, TUnit.HOUR);
+		//String timeStr = (time.getHour()+1) + " " + time.getMinutes() + " " + time.getSeconds();
+		String time = new SimpleDateFormat("HH mm ss").format(new Date());
 		int salt = new Random().nextInt(100000);
 		String messageText = "Dee EMM!" + salt;
 		jtwit.sendMessage("@"+jtwit2.getSelf().screenName, messageText + " I'm jtwit " + time);

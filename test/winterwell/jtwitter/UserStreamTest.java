@@ -1,7 +1,9 @@
 package winterwell.jtwitter;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 import java.util.Random;
 
@@ -24,13 +26,14 @@ public class UserStreamTest {
 	 * BUT when tested live for @winterstein, it ONLY picks up mentions if the tweet
 	 * starts "@winterstein...". Mid-tweet mentions get lost?!
 	 * NB: This is reproducible using SoDash 
+	 * @throws InterruptedException 
 	 */
 	@Test
-	public void testRead() {
+	public void testRead() throws InterruptedException {
 		Twitter jtwit = TwitterTest.newTestTwitter();
 		Twitter jtwit2 = TwitterTest.newTestTwitter2();
 		jtwit2.users().stopFollowing(jtwit.getSelf());
-		Utils.sleep(200);
+		Thread.sleep(200);
 		
 		UserStream us = new UserStream(jtwit);
 		us.setPreviousCount(100);
@@ -97,7 +100,7 @@ public class UserStreamTest {
 //				new String[]{
 //				"UK", "Edinburgh", "I is in your twitters LOL", "Scotland"
 //				}[(int)(System.currentTimeMillis() % 4)], null);
-		Utils.sleep(2000);		
+		Thread.sleep(2000);		
 //		TwitterList tl = new TwitterList("StreamTest"+new Random().nextInt(1000), jtwit, true, "Just a test list");
 //		tl.add(new User("winterstein"));
 //		Utils.sleep(4000);
@@ -107,7 +110,7 @@ public class UserStreamTest {
 		} else {
 			jtwit.follow("winterstein");
 		}
-		Utils.sleep(2000);
+		Thread.sleep(2000);
 //		tl.delete();
 
 //		List<TwitterEvent> sys = us.popSystemEvents();
@@ -154,7 +157,8 @@ public class UserStreamTest {
 		//V simple test. Get jtwit2 to send 2 messages, see if it picks it up.
 		String jtSName = jtwit.getSelf().screenName;
 		String jt2SName = jtwit2.getSelf().screenName;
-		Time time = new Time().plus(1, TUnit.HOUR);
+		//Time time = new Time().plus(1, TUnit.HOUR);
+		String time = new SimpleDateFormat("HH mm ss").format(new Date());
 		int salt = new Random().nextInt(100000);
 		String messageText = "Cripes! This is UserST! " + salt + " "; 
 		
@@ -224,8 +228,9 @@ public class UserStreamTest {
 		us2.setAutoReconnect(true);
 		us2.connect();
 		
-		Time time = new Time().plus(1, TUnit.HOUR);
-		String timeStr = (time.getHour()+1) + " " + time.getMinutes() + " " + time.getSeconds();
+		//Time time = new Time().plus(1, TUnit.HOUR);
+		//String timeStr = (time.getHour()+1) + " " + time.getMinutes() + " " + time.getSeconds();
+		String time = new SimpleDateFormat("HH mm ss").format(new Date());
 		int salt = new Random().nextInt(100000);
 		String messageText = "Dee EMM UStream!" + salt;
 		jtwit.sendMessage(jtwit2.getSelf().screenName, messageText + " I'm jtwit " + time);

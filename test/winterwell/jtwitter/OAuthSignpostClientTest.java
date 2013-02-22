@@ -14,7 +14,7 @@ extends TestCase
 		// open the authorisation page in the user's browser
 		client.authorizeDesktop();
 		// get the pin
-		String v = client.askUser("Please enter the verification PIN from Twitter");
+		String v = OAuthSignpostClient.askUser("Please enter the verification PIN from Twitter");
 		client.setAuthorizationCode(v);	
 		// use the API!
 		// This works
@@ -31,14 +31,14 @@ extends TestCase
 		// open the authorisation page in the user's browser
 		client.authorizeDesktop();
 		// get the pin
-		String v = client.askUser("Please enter the verification PIN from Twitter");
+		String v = OAuthSignpostClient.askUser("Please enter the verification PIN from Twitter");
 		client.setAuthorizationCode(v);		
 		String[] token = client.getAccessToken();
 		
 		// remake client
 		OAuthSignpostClient client2 = new OAuthSignpostClient(OAuthSignpostClient.JTWITTER_OAUTH_KEY, OAuthSignpostClient.JTWITTER_OAUTH_SECRET,
 											token[0], token[1]);		
-		Twitter jtwit2 = new Twitter(TwitterTest.TEST_USER, client);
+		Twitter jtwit2 = new Twitter(TwitterTest.TEST_USER, client2);
 		
 		// use the API!
 		assert jtwit2.isValidLogin();

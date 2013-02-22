@@ -29,7 +29,7 @@ public class ExtraWinterwellTests {
 				OAuthSignpostClient.JTWITTER_OAUTH_SECRET,
 				"oob");
 		client.authorizeDesktop();
-		String v = client.askUser("Please enter the verification PIN from Twitter");
+		String v = OAuthSignpostClient.askUser("Please enter the verification PIN from Twitter");
 		client.setAuthorizationCode(v);
 		// Optional: store the authorisation token details
 		String[] accessToken = client.getAccessToken();

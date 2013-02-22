@@ -11,13 +11,13 @@ import org.junit.Test;
 
 import winterwell.jtwitter.Twitter.ITweet;
 import winterwell.jtwitter.TwitterException.E413;
-import winterwell.utils.NoUTR;
+//import winterwell.utils.NoUTR;
 import winterwell.utils.Printer;
 import winterwell.utils.StrUtils;
 import winterwell.utils.Utils;
 import winterwell.utils.containers.Containers;
-import winterwell.utils.time.TUnit;
-import winterwell.utils.time.Time;
+//import winterwell.utils.time.TUnit;
+//import winterwell.utils.time.Time;
 
 public class TwitterStreamTest {
 
@@ -74,7 +74,7 @@ public class TwitterStreamTest {
 	 * @throws InterruptedException
 	 * @throws FileNotFoundException
 	 */
-	@Test @NoUTR
+	@Test //@NoUTR
 	public void testTooManyKeywords2_R6Probes() throws InterruptedException, FileNotFoundException{
 		// Sorry :/
 		boolean thisRunsForeverDontRunIt = false;
@@ -119,7 +119,7 @@ public class TwitterStreamTest {
 			TwitterStream ts = new TwitterStream(jtwit);
 			ts.setTrackKeywords(Arrays.asList("hello"));
 			ts.connect();
-			Utils.sleep(500);
+			Thread.sleep(500);
 			assert ts.isAlive();
 			
 			// Let's see what Twitter themselves say
@@ -130,7 +130,7 @@ public class TwitterStreamTest {
 			ts2.setTrackKeywords(Arrays.asList("world"));
 			ts2.connect();
 			
-			Utils.sleep(1000);			
+			Thread.sleep(1000);			
 			
 			System.out.println(ts.getTweets());
 			System.out.println(ts2.getTweets());
@@ -389,7 +389,7 @@ public class TwitterStreamTest {
 
 		
 		//V simple test. Get jtwit2 to send 2 messages, see if it picks it up.
-		Time time = new Time().plus(1, TUnit.HOUR);
+		//Time time = new Time().plus(1, TUnit.HOUR);
 		int salt = new Random().nextInt(100000);
 		String messageText = "Cripes! This is UserST! " + salt + " "; 
 		String messageText2 = "Public mess This is UserST2! " + salt + " ";
