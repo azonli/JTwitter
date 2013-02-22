@@ -1,0 +1,20 @@
+apply from: "${kii_gradle}"
+apply plugin: 'java'
+
+dependencies {
+	compile "oauth.signpost:signpost-core:1.+"
+	testCompile "org.scribe:scribe:1.+"
+}
+
+sourceSets {
+	main {
+		java {
+			srcDirs 'src', 'dummy'
+		}
+	}
+	test {
+		java {
+			srcDirs 'test', 'src-extra', 'util'
+		}
+	}
+}

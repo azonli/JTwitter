@@ -6,3 +6,4 @@ doc
 .settings
 ant
 binlocal
+/.gradle
