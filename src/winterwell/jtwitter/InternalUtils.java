@@ -29,7 +29,6 @@ import java.util.regex.Pattern;
 
 import winterwell.json.JSONException;
 import winterwell.json.JSONObject;
-import winterwell.utils.web.WebUtilsTest;
 
 import com.winterwell.jgeoplanet.IGeoCode;
 import com.winterwell.jgeoplanet.IPlace;

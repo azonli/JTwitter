@@ -21,10 +21,7 @@ import winterwell.jtwitter.TwitterException.E401;
 import winterwell.jtwitter.TwitterException.E403;
 import winterwell.jtwitter.TwitterException.E404;
 import winterwell.jtwitter.TwitterException.SuspendedUser;
-<<<<<<< HEAD
-=======
 import winterwell.jtwitter.ecosystem.TwitLonger;
->>>>>>> jtwitter-master
 
 /**
  * Java wrapper for the Twitter API version {@value #version}
