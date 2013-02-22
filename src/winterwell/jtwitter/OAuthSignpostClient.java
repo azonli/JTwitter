@@ -1,15 +1,15 @@
 package winterwell.jtwitter;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.Serializable;
-import java.io.StringBufferInputStream;
 import java.lang.reflect.Method;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLConnection;
+import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -98,8 +98,7 @@ import winterwell.jtwitter.guts.ClientHttpRequest;
  * @see OAuthScribeClient
  * @author Daniel
  */
-public class OAuthSignpostClient extends URLConnectionHttpClient implements
-		IHttpClient, Serializable {
+public class OAuthSignpostClient extends URLConnectionHttpClient {
 
 	
 	/**
@@ -118,7 +117,7 @@ public class OAuthSignpostClient extends URLConnectionHttpClient implements
 			connection.setReadTimeout(timeout);
 			connection.setConnectTimeout(timeout);
 			
-			Map<String, String> vars2 = new HashMap();
+			Map<String, String> vars2 = new HashMap<String, String>();
 			// TODO copy in the oauth suff??
 			final String payload = post2_getPayload(vars2);
 			
@@ -129,7 +128,7 @@ public class OAuthSignpostClient extends URLConnectionHttpClient implements
 				public InputStream getMessagePayload() throws IOException {
 					// SHould we use ByteArrayInputStream instead? With what
 					// encoding?
-					return new StringBufferInputStream(payload);
+					return new ByteArrayInputStream(payload.getBytes(Charset.forName("UTF-8")));
 				}
 			};
 			
@@ -283,8 +282,8 @@ public class OAuthSignpostClient extends URLConnectionHttpClient implements
 			// -- but will allow the rest of the class to be used.
 			// Desktop d = Desktop.getDesktop();
 			Class<?> desktopClass = Class.forName("java.awt.Desktop");
-			Method getDesktop = desktopClass.getMethod("getDesktop", null);
-			Object d = getDesktop.invoke(null, null);
+			Method getDesktop = desktopClass.getMethod("getDesktop");
+			Object d = getDesktop.invoke(null);
 			// d.browse(uri);
 			Method browse = desktopClass.getMethod("browse", URI.class);
 			browse.invoke(d, uri);
@@ -379,7 +378,7 @@ public class OAuthSignpostClient extends URLConnectionHttpClient implements
 			public InputStream getMessagePayload() throws IOException {
 				// SHould we use ByteArrayInputStream instead? With what
 				// encoding?
-				return new StringBufferInputStream(payload);
+				return new ByteArrayInputStream(payload.getBytes(Charset.forName("UTF-8")));
 			}
 		};
 		// safetyCheck();
