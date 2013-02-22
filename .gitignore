@@ -7,3 +7,5 @@ doc
 ant
 binlocal
 /.gradle
+/.classpath
+/.project
