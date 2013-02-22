@@ -10,6 +10,7 @@ import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLConnection;
+import java.util.HashMap;
 import java.util.Map;
 
 import oauth.signpost.AbstractOAuthConsumer;
@@ -18,16 +19,18 @@ import oauth.signpost.basic.DefaultOAuthProvider;
 import oauth.signpost.basic.HttpURLConnectionRequestAdapter;
 import oauth.signpost.exception.OAuthException;
 import oauth.signpost.http.HttpRequest;
+import oauth.signpost.signature.AuthorizationHeaderSigningStrategy;
+import oauth.signpost.signature.SigningStrategy;
 import winterwell.jtwitter.Twitter.IHttpClient;
+import winterwell.jtwitter.guts.ClientHttpRequest;
 
 /**
  * OAuth based login using Signpost (http://code.google.com/p/oauth-signpost/).
  * This is the "official" JTwitter OAuth support.
  * <p>
- * First download the Signpost jar and add it to your classpath, as it isn't
- * included in the JTwitter download.
+ * The Signpost jar is included in the JTwitter download.
  * <p>
- * Example Usage #1 (out-of-bounds, desktop based):
+ * Example Usage #1 (out-of-bounds, desktop based -- _not_ for Android):
  * 
  * <pre>
  * <code>
@@ -47,7 +50,7 @@ import winterwell.jtwitter.Twitter.IHttpClient;
  * </pre>
  * 
  * <p>
- * Example Usage #2 (using callbacks):<br>
+ * Example Usage #2 (using callbacks, works on Android):<br>
  * If you can handle callbacks, then this can be streamlined. 
  * 
  * On Android, you can use Intents to launch a web page, & to catch the resulting
@@ -97,6 +100,59 @@ import winterwell.jtwitter.Twitter.IHttpClient;
  */
 public class OAuthSignpostClient extends URLConnectionHttpClient implements
 		IHttpClient, Serializable {
+
+	
+	/**
+	 * @param uri
+	 * @param vars Can include File values
+	 * @return
+	 * @throws TwitterException
+	 */
+	//@Override
+	public final String postMultipartForm(String url, Map<String, ?> vars) 
+			throws TwitterException 
+	{
+		try {			
+			HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+			connection.setRequestMethod("POST");
+			connection.setReadTimeout(timeout);
+			connection.setConnectTimeout(timeout);
+			
+			Map<String, String> vars2 = new HashMap();
+			// TODO copy in the oauth suff??
+			final String payload = post2_getPayload(vars2);
+			
+			// needed for OAuthConsumer.collectBodyParameters() not to get upset
+			HttpURLConnectionRequestAdapter wrapped = new HttpURLConnectionRequestAdapter(
+					connection) {
+				@Override
+				public InputStream getMessagePayload() throws IOException {
+					// SHould we use ByteArrayInputStream instead? With what
+					// encoding?
+					return new StringBufferInputStream(payload);
+				}
+			};
+			
+			// ??Don't alter the normal consumer's signing strategy
+			SimpleOAuthConsumer _consumer = new SimpleOAuthConsumer(consumerKey, consumerSecret);
+			_consumer.setTokenWithSecret(accessToken, accessTokenSecret);
+			SigningStrategy ss = new AuthorizationHeaderSigningStrategy();
+			_consumer.setSigningStrategy(ss);
+			_consumer.sign(wrapped);
+
+			ClientHttpRequest req = new ClientHttpRequest(connection);
+			InputStream page = req.post(vars);
+			// check connection & process the envelope
+			processError(connection);
+			processHeaders(connection);
+			return InternalUtils.toString(page);
+		} catch (TwitterException e) {
+			throw e;
+		} catch (Exception e) {
+			throw new TwitterException(e);
+		}
+	}
+	
 
 	/**
 	 * Use with #setProvider() to make this a foursquare OAuth client
@@ -294,23 +350,7 @@ public class OAuthSignpostClient extends URLConnectionHttpClient implements
 	}
 
 	private void init() {
-		// The default consumer can't do post requests!
-		// TODO override AbstractAuthConsumer.collectBodyParameters() which
-		// would be more efficient
-		consumer = new AbstractOAuthConsumer(consumerKey, consumerSecret) {
-			/**
-			 * 
-			 */
-			private static final long serialVersionUID = 1L;
-
-			@Override
-			protected HttpRequest wrap(final Object request) {
-				if (request instanceof HttpRequest)
-					return (HttpRequest) request;
-				return new HttpURLConnectionRequestAdapter(
-						(HttpURLConnection) request);
-			}
-		};
+		consumer = new SimpleOAuthConsumer(consumerKey, consumerSecret);
 		if (accessToken != null) {
 			consumer.setTokenWithSecret(accessToken, accessTokenSecret);
 		}
@@ -378,7 +418,12 @@ public class OAuthSignpostClient extends URLConnectionHttpClient implements
 	 *             throws an exception if the verifier is invalid
 	 */
 	public void setAuthorizationCode(String verifier) throws TwitterException {
-		assert accessToken == null : "This JTwitter already has an access token and is ready for use.";
+		// Lets allow reset (but we need fresh signpost objects)
+		if (accessToken!=null) {
+			// Create fresh consumer & provider objects
+			accessToken=null;
+			init();
+		}
 		try {
 			provider.retrieveAccessToken(consumer, verifier);
 			accessToken = consumer.getToken();
@@ -395,6 +440,9 @@ public class OAuthSignpostClient extends URLConnectionHttpClient implements
 		setProvider(FOURSQUARE_PROVIDER);
 	}
 	
+	/**
+	 * Replace the default Twitter urls with the LinkedIn urls.
+	 */
 	public void setLinkedInProvider() {
 		setProvider(LINKEDIN_PROVIDER);
 	}
@@ -420,4 +468,28 @@ public class OAuthSignpostClient extends URLConnectionHttpClient implements
 		this.provider = provider;
 	}
 
+}
+
+/**
+ * The default consumer can't do post requests!
+		// TODO override AbstractAuthConsumer.collectBodyParameters() which
+		// would be more efficient
+ * @author daniel
+ */
+class SimpleOAuthConsumer extends AbstractOAuthConsumer {
+	
+	public SimpleOAuthConsumer(String consumerKey, String consumerSecret) {
+		super(consumerKey, consumerSecret);
+	}
+
+	private static final long serialVersionUID = 1L;
+	
+
+	@Override
+	protected HttpRequest wrap(final Object request) {
+		if (request instanceof HttpRequest)
+			return (HttpRequest) request;
+		return new HttpURLConnectionRequestAdapter(
+				(HttpURLConnection) request);
+	}
 }

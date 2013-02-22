@@ -9,11 +9,11 @@ import java.io.Serializable;
 import java.math.BigInteger;
 import java.net.HttpURLConnection;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
-
 
 import winterwell.json.JSONArray;
 import winterwell.json.JSONException;
@@ -126,10 +126,14 @@ public abstract class AStream implements Closeable {
 	static Object read3_parse(JSONObject jo, Twitter jtwitr)
 			throws JSONException {
 		// tweets
-		// TODO DMs?? They don't seem to get sent!
 		if (jo.has("text")) {
 			Status tweet = new Status(jo, null);
 			return tweet;
+		}
+		// DMs
+		if (jo.has("direct_message")) {
+			Message dm = new Message(jo.getJSONObject("direct_message"));
+			return dm;
 		}
 
 		// Events
@@ -156,9 +160,14 @@ public abstract class AStream implements Closeable {
 			}
 			return new Object[] { "limit", cnt };
 		}
+		// e.g. "disconnect":{"code":7,"stream_name":"XXXX-userstreamxxxx","reason":"admin logout"}		
+		JSONObject disconnect = jo.optJSONObject("disconnect");
+		if (disconnect != null) {			
+			return new Object[] { "disconnect", disconnect};
+		}
 		// ??
 		System.out.println(jo);
-		return jo;
+		return new Object[]{"unknown", jo};
 	}
 
 	boolean autoReconnect;
@@ -169,6 +178,10 @@ public abstract class AStream implements Closeable {
 
 	boolean fillInFollows = true;
 
+	/**
+	 * The number of messages (which could be tweets, events, or system
+	 * events) which the stream has dropped to stay within it's bounds.
+	 */
 	private int forgotten;
 
 	List<Long> friends;
@@ -182,7 +195,7 @@ public abstract class AStream implements Closeable {
 
 	final List<IListen> listeners = new ArrayList(0);
 
-	final List<Outage> outages = new ArrayList();
+	final List<Outage> outages = Collections.synchronizedList(new ArrayList());
 
 	int previousCount;
 
@@ -339,7 +352,8 @@ public abstract class AStream implements Closeable {
 
 	/**
 	 * Use the REST API to fill in outages when possible. Filled-in outages will
-	 * be removed from the list.
+	 * be removed from the list. 
+	 * WARNING: This swallows exceptions! (but check the return value)
 	 * <p>
 	 * In accordance with best-practice, this method will skip over very recent
 	 * outages (which will be picked up by subsequent calls to
@@ -352,26 +366,38 @@ public abstract class AStream implements Closeable {
 	 * API polling. This delay is crucial to prevent dog-piling the REST API in
 	 * the event of a minor hiccup on the streaming API.
 	 * </p>
+	 * @return null if all OK, the Exception raised otherwise.
 	 */
-	public final void fillInOutages() throws UnsupportedOperationException {
+	public final Exception fillInOutages() throws UnsupportedOperationException {
 		if (outages.size() == 0)
-			return;
+			return null;
 		Outage[] outs = outages.toArray(new Outage[0]);
 		// protect our original object from edits and threading-issues
-		Twitter jtwit2 = new Twitter(jtwit);
+		Twitter jtwit2 = new Twitter(jtwit);		
+		Exception ex = null;
 		for (Outage outage : outs) {
 			// too recent? wait at least 1 minute
 			if (System.currentTimeMillis() - outage.untilTime < 60000) {
 				continue;
 			}
-			jtwit2.setSinceId(outage.sinceId);
-			jtwit2.setUntilDate(new Date(outage.untilTime));
-			jtwit2.setMaxResults(100000); // hopefully not needed!
-			// fetch
-			fillInOutages2(jtwit2, outage);
-			// success
-			outages.remove(outage);
+			boolean ok = outages.remove(outage);
+			if ( ! ok) continue; // already done or dropped
+			try {						
+				jtwit2.setSinceId(outage.sinceId);
+				jtwit2.setUntilDate(new Date(outage.untilTime));
+				jtwit2.setMaxResults(100000); // hopefully not needed!
+				// fetch
+				fillInOutages2(jtwit2, outage);
+				// success
+			} catch(Throwable e) {
+				// fail -- put it back on the queue				
+				outages.add(outage);
+				if (e instanceof Exception) {
+					ex = (Exception) e;
+				}
+			}			
 		}
+		return ex;
 	}
 
 	/**
@@ -489,7 +515,8 @@ public abstract class AStream implements Closeable {
 	 * ["delete", Status] This tweet has been deleted from Twitter<br>
 	 * ["limit", int skipped_tweets] See https://dev.twitter.com/discussions/2655<br>
 	 * ["exception", Exception]<br>
-	 * ["reconnect", milliseconds_offline]
+	 * ["reconnect", milliseconds_offline]<br>
+	 * ["disconnect", JSONObject e.g. {"reason":"admin logout","stream_name":"mystream","code":7}]<br>
 	 * 
 	 * @return the recent system events. Calling this will clear the list of system events.
 	 * <p>
@@ -516,12 +543,14 @@ public abstract class AStream implements Closeable {
 	}
 
 	private final void read() {
-		String[] jsons = readThread.popJsons();
-		for (String json : jsons) {
-			try {
-				read2(json);
-			} catch (JSONException e) {
-				throw new TwitterException.Parsing(json, e);
+		if (readThread!=null) {
+			String[] jsons = readThread.popJsons();
+			for (String json : jsons) {
+				try {
+					read2(json);
+				} catch (JSONException e) {
+					throw new TwitterException.Parsing(json, e);
+				}
 			}
 		}
 		if (isConnected())
@@ -556,19 +585,21 @@ public abstract class AStream implements Closeable {
 		// parse the json
 		Object object = read3_parse(jobj, jtwit);
 
-		// tweets
-		// TODO DMs?? They don't seem to get sent!
-		// System.out.println(jo);
-		if (object instanceof Status) {
-			Status tweet = (Status) object;
+		// tweets & DMs
+		if (object instanceof ITweet) {
+			ITweet tweet = (ITweet) object;
 			// de-duplicate a bit locally (this is rare -- perhaps don't
 			// bother??)
 			if (tweets.contains(tweet))
 				return;
 			tweets.add(tweet);
-			// track the last id for tracking outages
-			if (tweet.id.compareTo(lastId) > 0) {
-				lastId = tweet.id;
+			// track the last Status id for tracking outages 
+			// (NB: Message ids are different & less generally useful)
+			if (tweet instanceof Status) {
+				BigInteger id = ((Status) tweet).id;
+				if (id.compareTo(lastId) > 0) {
+					lastId = id;
+				}
 			}
 			forgotten += forgetIfFull(tweets);
 			return;
@@ -584,22 +615,22 @@ public abstract class AStream implements Closeable {
 		// Deletes and other system events, like limits
 		if (object instanceof Object[]) {
 			Object[] sysEvent = (Object[]) object;
-			// delete?
+			// process it...
+			// ...delete?
 			if ("delete".equals(sysEvent[0])) {
 				Status deadTweet = (Status) sysEvent[1];
 				// prune local (which is unlikely to do much)
 				boolean pruned = tweets.remove(deadTweet);
-				if (!pruned) {
-					sysEvents.add(sysEvent);
-					forgotten += forgetIfFull(sysEvents);
-				}
-				return;
+				if (pruned) return; // No need to keep this event around
 			} else if ("limit".equals(sysEvent[0])) {
+				// ...we got rate-limited?
 				Integer cnt = (Integer) sysEvent[1];				
-				sysEvents.add(sysEvent);
 				forgotten += cnt;
-				return;				
 			}
+			// store the sys-event
+			sysEvents.add(sysEvent);
+			forgotten += forgetIfFull(sysEvents);
+			return;
 		}
 		// ??
 		System.out.println(jobj);
@@ -690,6 +721,7 @@ public abstract class AStream implements Closeable {
 			connect();
 			return;
 		} catch (TwitterException.E40X e) {
+			// User error (e.g. TooManyLogins) -- don't keep trying
 			throw e;
 		} catch (Exception e) {
 			// oh well

@@ -24,17 +24,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import winterwell.json.JSONException;
+import winterwell.json.JSONObject;
+import winterwell.utils.web.WebUtilsTest;
 
 import com.winterwell.jgeoplanet.IGeoCode;
 import com.winterwell.jgeoplanet.IPlace;
 import com.winterwell.jgeoplanet.MFloat;
-
-
-import winterwell.json.JSONException;
-import winterwell.json.JSONObject;
 
 /**
  * Utility methods used in Twitter. This class is public in case anyone else
@@ -235,20 +234,34 @@ public class InternalUtils {
 		}
 	}
 
+	/**
+	 * A very tolerant boolean reader 
+	 * @param obj
+	 * @param key
+	 * @return
+	 * @throws JSONException
+	 */
 	static Boolean getOptBoolean(JSONObject obj, String key)
 			throws JSONException {
 		Object o = obj.opt(key);
 		if (o == null || o.equals(JSONObject.NULL))
 			return null;
-		if (o.equals(Boolean.FALSE)
-				|| (o instanceof String && ((String) o)
-						.equalsIgnoreCase("false")))
-			return false;
-		else if (o.equals(Boolean.TRUE)
-				|| (o instanceof String && ((String) o)
-						.equalsIgnoreCase("true")))
-			return true;
-		throw new JSONException(o + " (" + key + ") is not boolean");
+		if (o instanceof Boolean) {
+			return (Boolean) o;
+		}
+		if (o instanceof String) {
+			String os = (String) o;		
+			if (os.equalsIgnoreCase("true")) return true;		
+			if (os.equalsIgnoreCase("false")) return false;
+		}
+		// Wordpress returns some random shite :(
+		if (o instanceof Integer) {
+			int oi = (Integer)o;
+			if (oi==1) return true;
+			if (oi==0 || oi==-1) return false;
+		}
+		System.err.println("JSON parse fail: "+o + " (" + key + ") is not boolean");
+		return null;
 	}
 
 	/**
@@ -328,7 +341,7 @@ public class InternalUtils {
 	}
 
 	/**
-	 * Note: this is a JVM wide setting, intended for debugging.
+	 * Note: this is a global JVM wide setting, intended for debugging.
 	 * @param on
 	 *            true to activate {@link #getAPIUsageStats()}. false to switch
 	 *            stats off. false by default
@@ -479,6 +492,17 @@ public class InternalUtils {
 		} catch (InterruptedException e) {
 			throw new RuntimeException(e);
 		}		
+	}
+
+
+	/**
+	 * Several methods require authorisation in API v1.1, but not in v1.0
+	 * @param jtwit
+	 * @return true if jtwit can authorise, or if the API v is 1.1
+	 */
+	static boolean authoriseIn11(Twitter jtwit) {
+		return jtwit.getHttpClient().canAuthenticate() 
+				|| jtwit.TWITTER_URL.endsWith("1.1");
 	}
 
 }

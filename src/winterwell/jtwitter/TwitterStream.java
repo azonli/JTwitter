@@ -6,6 +6,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> jtwitter-master
 
 /**
  * Connect to the streaming API.
@@ -128,7 +132,11 @@ public class TwitterStream extends AStream {
 		
 		// memory paranoia
 		if (user2stream.size() > 1000) {
+<<<<<<< HEAD
 			// FIXME: Should this be an exception? The remedy looks a little severe!
+=======
+			// oh well -- forget stuff (this Map is just a safety check)
+>>>>>>> jtwitter-master
 			user2stream = new ConcurrentHashMap<String, AStream>();
 		}
 		user2stream.put(jtwit.getScreenName(), this);

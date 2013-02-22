@@ -1,11 +1,13 @@
 package winterwell.jtwitter;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
 import org.junit.Test;
 
+import winterwell.jtwitter.AStream.IListen;
 import winterwell.jtwitter.Twitter.ITweet;
 import winterwell.utils.Printer;
 import winterwell.utils.StrUtils;
@@ -15,6 +17,7 @@ import winterwell.utils.time.Time;
 
 public class UserStreamTest {
 
+	
 	/**
 	 * ARGH! 
 	 * This picks up mentions fine here in the test.
@@ -25,12 +28,35 @@ public class UserStreamTest {
 	@Test
 	public void testRead() {
 		Twitter jtwit = TwitterTest.newTestTwitter();
+		Twitter jtwit2 = TwitterTest.newTestTwitter2();
+		jtwit2.users().stopFollowing(jtwit.getSelf());
+		Utils.sleep(200);
+		
 		UserStream us = new UserStream(jtwit);
 		us.setPreviousCount(100);
 		us.setWithFollowings(false); // no need to hear what JTwitTest2 has to say		
 		// -- unless it's too us
 		us.setAutoReconnect(true);
 		us.connect();
+		us.addListener(new IListen() {			
+			@Override
+			public boolean processTweet(ITweet tweet) {
+				Printer.out("Heard: "+tweet);
+				return true;
+			}
+			
+			@Override
+			public boolean processSystemEvent(Object[] obj) {
+				Printer.out("Heard", obj);
+				return true;
+			}
+			
+			@Override
+			public boolean processEvent(TwitterEvent event) {
+				Printer.out("Heard: "+event);
+				return true;
+			}
+		});
 		
 		// let's also try with a TwitterStream
 		TwitterStream us2 = new TwitterStream(jtwit);
@@ -41,13 +67,12 @@ public class UserStreamTest {
 		us2.connect();
 		
 		// Do some stuff		
-		int salt = new Random().nextInt(1000);
-		Twitter jtwit2 = TwitterTest.newTestTwitter2();
+		int salt = new Random().nextInt(1000);		
 		if ( ! jtwit.isFollowing(jtwit2.getScreenName())) {
-			jtwit.follow(jtwit2.getScreenName());
+			jtwit.users().follow(jtwit2.getScreenName());
 		}
 		if ( ! jtwit2.isFollowing("jtwit")) {
-			jtwit2.follow("jtwit");
+			jtwit2.users().follow("jtwit");
 		}
 		jtwit2.setStatus("Public hello to @jtwit "+salt);
 		jtwit2.setStatus("@jtwit Public hello v2 "+salt);
@@ -102,7 +127,7 @@ public class UserStreamTest {
 	}
 
 	/**
-	 * Checks if UserStream gets mentions, 2 way due to the irregularites in shown in
+	 * Checks if UserStream gets mentions, 2 way due to the irregularites as shown in
 	 * {@link winterwell.jtwitter.TwitterTest.#testSendMention2()}. This seems to
 	 * work.
 	 * @throws InterruptedException 
@@ -111,7 +136,8 @@ public class UserStreamTest {
 	public void testUSGetMentions() throws InterruptedException {
 		Twitter jtwit = TwitterTest.newTestTwitter();
 		Twitter jtwit2 = TwitterTest.newTestTwitter2();
-		UserStream us = new UserStream(jtwit2);
+		
+		UserStream us = new UserStream(jtwit);
 		us.setPreviousCount(100);
 		us.setWithFollowings(false); // no need to hear what JTwitTest2 has to say		
 		// -- unless it's too us
@@ -131,17 +157,17 @@ public class UserStreamTest {
 		Time time = new Time().plus(1, TUnit.HOUR);
 		int salt = new Random().nextInt(100000);
 		String messageText = "Cripes! This is UserST! " + salt + " "; 
-		String messageText2 = "Public mess This is UserST2! " + salt + " ";
 		
 		Status s = jtwit.setStatus("@" + jt2SName + " " + messageText + " from " + jtSName + " " + time);
 		Thread.sleep(1000);
 		System.out.println(s);
 
-		Status s2 = jtwit.setStatus(messageText2 + "@" + jt2SName + " from " + jtSName + " " + time);
+		Status s2 = jtwit.setStatus(messageText + "@" + jt2SName + " from " + jtSName + " " + time);
 		Thread.sleep(1000);
 		System.out.println(s2);
 
-		Status s3 = jtwit2.setStatus("@" + jtSName + " " + messageText + " from " + jt2SName + " " + time);
+		String messageText2 = "Public mess This is UserST2! " + salt + " ";
+		Status s3 = jtwit2.setStatus("@" + jtSName + " " + messageText2 + " from " + jt2SName + " " + time);
 		Thread.sleep(1000);
 		System.out.println(s3);
 
@@ -153,39 +179,24 @@ public class UserStreamTest {
 		List<ITweet> tweets = us.popTweets();
 		List<ITweet> tweets2 = us2.popTweets();
 		//Both messages should appear here, for both users.
-		boolean m1Present = false; 
-		boolean m2Present = false;
 		
-		Printer.out("@"+jtSName);
-		for (ITweet tw : tweets){
-			String text = tw.getText();
-			
-			//Note, @jtwit is a *substring* of @jtwittest2 - this caused quite some confusion
-			if (text.contains(messageText)&&text.contains("@"+jtSName + " ")){
-				Printer.out("J1 - M1 found!");
-				m1Present = true;
+		System.out.println("\n"+jtSName+" found: "+tweets.size());
+		System.out.println(tweets);
+		System.out.println("\n"+jt2SName+" found: "+tweets2.size());
+		System.out.println(tweets2);
+		
+		List missed1 = new ArrayList();
+		List missed2 = new ArrayList();
+		for(Status _s : new Status[]{s,s2,s3,s4}) {
+			if ( ! tweets.contains(_s)) {
+				missed1.add(_s);
 			}
-			if (text.contains(messageText2)&&text.contains("@"+jtSName + " ")){
-				Printer.out("J1 - M2 found!");
-				m2Present = true;
+			if ( ! tweets2.contains(_s)) {
+				missed2.add(_s);
 			}
 		}
-		assert (m1Present&&m2Present);
-		
-		m1Present = m2Present = false;
-		for (ITweet tw : tweets2){
-			if (tw.getText().contains(messageText)&&tw.getText().contains("@"+jt2SName + " ")){
-				Printer.out("J2 - M1 found!");
-				m1Present = true;
-			}
-			if (tw.getText().contains(messageText2)&&tw.getText().contains("@"+jt2SName + " ")){
-				Printer.out("J2 - M2 found!");
-				m2Present = true;
-			}
-		}
-		//This test fails here, although us2 gets the message starting @jtwittest2, it doesn't get
-		//the one with @jtwittest2 later in the text.
-		assert (m1Present&&m2Present);
+		assert missed1.isEmpty() : missed1;
+		assert missed2.isEmpty() : missed2;
 		
 		us.close();
 		us2.close();
@@ -217,8 +228,8 @@ public class UserStreamTest {
 		String timeStr = (time.getHour()+1) + " " + time.getMinutes() + " " + time.getSeconds();
 		int salt = new Random().nextInt(100000);
 		String messageText = "Dee EMM UStream!" + salt;
-		jtwit.sendMessage("@"+jtwit2.getSelf().screenName, messageText + " I'm jtwit " + time);
-		jtwit2.sendMessage("@"+jtwit.getSelf().screenName, messageText + " I'm jtwittest2 " + time);
+		jtwit.sendMessage(jtwit2.getSelf().screenName, messageText + " I'm jtwit " + time);
+		jtwit2.sendMessage(jtwit.getSelf().screenName, messageText + " I'm jtwittest2 " + time);
 		Thread.sleep(10000);
 		
 		

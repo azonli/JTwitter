@@ -1,39 +1,35 @@
 package winterwell.jtwitter;
 
 
+import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.math.BigInteger;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.Set;
 import java.util.regex.Matcher;
 
 import junit.framework.TestCase;
-
-
 import winterwell.json.JSONException;
 import winterwell.json.JSONObject;
+import winterwell.jtwitter.Twitter.ITweet;
 import winterwell.jtwitter.Twitter.KEntityType;
 import winterwell.jtwitter.Twitter.KRequestType;
 import winterwell.jtwitter.Twitter.TweetEntity;
-import winterwell.jtwitter.TwitterException.E401;
 import winterwell.jtwitter.TwitterException.E403;
 import winterwell.jtwitter.TwitterException.E404;
-import winterwell.jtwitter.TwitterException.SuspendedUser;
 import winterwell.utils.NoUTR;
 import winterwell.utils.Printer;
 import winterwell.utils.Utils;
+import winterwell.utils.containers.Containers;
 import winterwell.utils.time.TUnit;
 import winterwell.utils.time.Time;
-import winterwell.utils.web.XStreamUtils;
 
 /**
  * Unit tests for JTwitter.
@@ -46,15 +42,78 @@ public class TwitterTest
 extends TestCase // Comment out to remove the JUnit dependency
 {	
 	
+	public void testDisplayTextBug() {
+		Twitter jtwit = newTestTwitter();
+				
+		Status _tweet = jtwit.getStatus(new BigInteger("255592522955505665"));
+		System.out.println(_tweet.getId());
+		System.out.println(_tweet.getText());
+		System.out.println(_tweet.getTweetEntities(KEntityType.urls));
+		System.out.println(_tweet.getDisplayText());
+		System.out.println();
+		
+		List<Status> tweets = jtwit.search("USEFUL Printable diary calendar decluttering lists Village Voices");
+		for (Status tweet : tweets) {
+			System.out.println(tweet.getId());
+			System.out.println(tweet.getText());
+			System.out.println(tweet.getTweetEntities(KEntityType.urls));
+			System.out.println(tweet.getDisplayText());
+			System.out.println();
+		}
+	}
+	
+	public void testSource() {
+		Twitter jtwit = newTestTwitter();
+
+		List<Status> tweets = jtwit.getUserTimeline("johnnieingram");
+		for (Status status : tweets) {
+			System.out.println(status.getSource()+"\t"+status.getCreatedAt());
+		}
+		if (true) return;
+		
+		HashMap<String,Integer> distro = new HashMap();
+		TwitterStream ts = null;
+		try {
+			ts = new TwitterStream(jtwit);
+			ts.connect();
+			Utils.sleep(500);
+			for (ITweet status : ts.popTweets()) {
+				String s = ((Status) status).getSource();
+				Containers.plus(distro, s, 1);
+			}			
+		} catch(Exception ex) {
+			ex.printStackTrace();
+		} finally {
+			ts.close();
+		}
+		assert ! distro.isEmpty();
+		List<String> keys = Containers.getSortedKeys(distro);
+		for (String app : keys) {
+			System.out.println(app+"\t"+distro.get(app));
+		}
+	}
+	
 	public void testHttpHttp() {
-		Twitter jtwit = new Twitter();
-		BigInteger id = new BigInteger("213657059722407936");;
-		Status s = jtwit.getStatus(id);
-//		assert s.getText().equals(tweet) : s.getText();
-		String sdt = s.getDisplayText();
-		System.out.println(sdt);
-		s.getDisplayText();
-		assert sdt.equals("Good for M&S -- they've become carbon neutral http://soda.sh/xVJ @guardian");
+		{
+			Twitter jtwit = newTestTwitter();
+			BigInteger id = new BigInteger("213657059722407936");;
+			Status s = jtwit.getStatus(id);
+	//		assert s.getText().equals(tweet) : s.getText();
+			String sdt = s.getDisplayText();
+			System.out.println(sdt);
+			s.getDisplayText();
+			assert sdt.equals("Good for M&S -- they've become carbon neutral http://soda.sh/xVJ @guardian");			
+		}
+		{
+			Twitter jtwit = new Twitter();
+			BigInteger id = new BigInteger("213657059722407936");;
+			Status s = jtwit.getStatus(id);
+	//		assert s.getText().equals(tweet) : s.getText();
+			String sdt = s.getDisplayText();
+			System.out.println(sdt);
+			s.getDisplayText();
+			assert sdt.equals("Good for M&S -- they've become carbon neutral http://soda.sh/xVJ @guardian");
+		}
 	}
 	
 	public void testAPIStatus() throws Exception {
@@ -68,6 +127,7 @@ extends TestCase // Comment out to remove the JUnit dependency
 		Twitter jtwit = newTestTwitter();
 		jtwit.updateConfiguration();
 		System.out.println(Twitter.LINK_LENGTH);
+		System.out.println("Photo limit: "+Twitter.PHOTO_SIZE_LIMIT);
 	}
 	
 	/**
@@ -87,22 +147,28 @@ extends TestCase // Comment out to remove the JUnit dependency
 		
 		// this will contain gibberish if we don't have Twitter.search2_bugHack enabled
 		List<Status> tweets = ts.search("apple OR pear");
+		for (Status status : tweets) {
+			String text = status.getDisplayText().toLowerCase()+" "+status.getUser().screenName.toLowerCase();
+			assert text.contains("apple") || text.contains("pear") || text.contains("http") : text;
+		}
 		
 		List<Status> tweets2 = ts.search("apple OR pear -kxq -http");
 		for (Status status : tweets2) {
-			String text = status.getText().toLowerCase();
-			assert text.contains("apple") || text.contains("pear");
+			String text = status.getDisplayText().toLowerCase()+" "+status.getUser().screenName.toLowerCase();
+			assert text.contains("apple") || text.contains("pear") || text.contains("http") : text;
 		}
 	}
 	
 	public void testCornerCaseNastiness(){
 		Twitter ts = new Twitter();
 		
-		List<Status> tweets = ts.search("\"Justin Beiber\" or \"solar energy\"");
-		assert tweets.isEmpty()==true;
+		List<Status> tweets = ts.search("\"Justin Beiber\" OR \"solar energy\"");
+		assert tweets.isEmpty()==false;
 		
 		List<Status> tweets2 = ts.search("\"Justin Beiber\" OR \"solar energy\" -kxq");
 		assert tweets2.isEmpty()==false;
+		
+		assert tweets.size() == tweets2.size();
 	}
 	
 	/**
@@ -205,6 +271,41 @@ extends TestCase // Comment out to remove the JUnit dependency
 		}
 	}
 
+
+	public void testIdFilteredSearch() {
+		// The IDs used here fell out of Twitter's supported time-window (of course)
+//		Twitter tw = newTestTwitter();
+//		tw.setSinceId(new BigInteger("255406480277262336")); // 8th Oct 9:37pm
+//		tw.setUntilId(new BigInteger("255773053018054657")); // 9th Oct 9:53pm
+//		tw.setMaxResults(100);		
+//		List<Status> tweets = tw.search("\"british gas\" lang:en");
+//		assert ! tweets.isEmpty();
+//		System.out.println(tweets.size());
+//		for (Status status : tweets) {
+//			Time time = new Time(status.getCreatedAt());
+//			System.out.println(time);
+//		}
+	}
+	
+	
+	public void testDateFilteredSearch() {
+		Twitter tw = newTestTwitter();
+		Time s = new Time().minus(5, TUnit.DAY);
+		Time e = new Time().minus(1, TUnit.DAY);
+		tw.setSinceDate(s.getDate());
+		tw.setUntilDate(e.getDate());
+//		tw.setUntilId(new BigInteger("255780110832107520")); Fallen out of the window
+		tw.setMaxResults(100);		
+		List<Status> tweets = tw.search("edinburgh tech");
+		assert ! tweets.isEmpty();
+		System.out.println(tweets.size());
+		for (Status status : tweets) {
+			Time time = new Time(status.getCreatedAt());
+			assert time.isAfter(s) : time;
+			assert time.isBefore(e) : time;
+		}
+	}
+	
 	public void testSinceId() {
 //		investigating URI uri = new URI("http://api.twitter.com/1/statuses/replies.json?since_id=22090245178&?since_id=22090245178&");
 		Twitter tw = newTestTwitter();
@@ -228,42 +329,25 @@ extends TestCase // Comment out to remove the JUnit dependency
 		assertEquals(""+new BigInteger(lng), jo.getString("id_str"));
 	}
 
-	public void testTwitLonger() {
-		String xml = "<?xml version=\"1.0\" encoding=\"UTF-8\" ?><twitlonger>\n"
-	+"<post>\n"
-	+"	<id>448efb379cea1098ebe2c1fe453a1cdc</id>\n"
-+"		<link>http://www.twitlonger.com/show/448efb379cea1098ebe2c1fe453a1cdc</link>\n"
-+"		<short>http://tl.gd/2lc0qb</short>\n"
-+"		<content>This is a long test status. Sorry if I ramble. But sometimes 140 characters is just too short.\n"
-+"You know what I (cont) http://tl.gd/2lc0qb</content>\n"
-+"	</post>\n"
-+"</twitlonger>";
-
-		assert Twitter.contentTag.matcher(xml).find();
-
-		Twitter twitter = newTestTwitter();
-		twitter.setupTwitlonger("sodash", "MyTwitlongerApiKey"); // FIXME
-		Status s = twitter.updateLongStatus(
-				"This is a long test status. Sorry if I ramble. But sometimes 140 characters is just too short.\n"
-				+"You know what I mean?\n\n"
-				+"So thank-you to TwitLonger for providing this service.\n"
-				+":)", null);
-		System.out.println(s);
-	}
 
 	public void testGetSetFavorite() throws InterruptedException {
 		Twitter twitter = newTestTwitter();
 		int salt = new Random().nextInt(100);
 		Status s = twitter.getStatus("winterstein");
-		if (s.isFavorite()) {
-			twitter.setFavorite(s, false);
-			Thread.sleep(5000);
-			assert !s.isFavorite();
-		}
-		twitter.setFavorite(s, true);
+//		if (s.isFavorite()) {
+		Status s2 = twitter.setFavorite(s, false);
+		assert ! s2.isFavorite();
+		Thread.sleep(1000);
+		// repeated false is fine
+		twitter.setFavorite(s, false);
+//		}
 		Thread.sleep(5000);
-		Status s2 = twitter.getStatus("winterstein");
-		assert s2.isFavorite();
+		Status s3 = twitter.setFavorite(s, true);
+		assert s3.isFavorite();
+		Thread.sleep(5000);
+//		twitter.setFavorite(s, true); // repeated true throws exception
+		Status s4 = twitter.getStatus("winterstein");
+		assert s4.isFavorite();
 	}
 
 	
@@ -344,7 +428,7 @@ extends TestCase // Comment out to remove the JUnit dependency
 		List<Status> rtsByMe = twitter.getRetweetsByMe();
 //		List<Status> rtsOfMe = source.getRetweetsOfMe();
 		assert retweet.getOriginal().equals(original) : retweet.getOriginal();
-		assert retweet.inReplyToStatusId == original.id : retweet.inReplyToStatusId +" vs "+original.id;		
+		assert retweet.inReplyToStatusId.equals(original.id) : retweet.inReplyToStatusId +" vs "+original.id;		
 		assert retweet.getText().startsWith("RT @spoonmcguffin: ");
 		assert ! rtsByMe.isEmpty();
 		assert rtsByMe.contains(retweet);
@@ -565,22 +649,12 @@ extends TestCase // Comment out to remove the JUnit dependency
 		assert ts.get(0).text != null;
 	}
 
-	/**
-	 * Test method for {@link winterwell.jtwitter.Twitter#getFeatured()}.
-	 */
-	public void testGetFeatured() {
-		Twitter tw = newTestTwitter();
-		List<User> f = tw.users().getFeatured();
-		assert f.size() > 0;
-		assert f.get(0).status != null;
-	}
-
 
 	public void testTooOld() {
 		Twitter tw = newTestTwitter();
 		try {
-			tw.setSinceId(10584958134L);
-			tw.setUntilId(20584958134L);
+			tw.setSinceId(new BigInteger("10584958134"));
+			tw.setUntilId(new BigInteger("20584958134"));
 			tw.setSearchLocation(55.954151,-3.20277,"18km");
 			List<Status> tweets = tw.search("stuff");
 			System.out.println(tweets.size());
@@ -596,14 +670,6 @@ extends TestCase // Comment out to remove the JUnit dependency
 	}
 
 
-	/**
-	 * Test method for {@link winterwell.jtwitter.Twitter#getPublicTimeline()}.
-	 */
-	public void testGetPublicTimeline() {
-		Twitter tw = newTestTwitter();
-		List<Status> pt = tw.getPublicTimeline();
-		assert pt.size() > 5;
-	}
 
 	public void testGetRateLimitStats() throws InterruptedException {
 		{
@@ -726,7 +792,7 @@ extends TestCase // Comment out to remove the JUnit dependency
 
 	/**
 	 * An exploration test for checking whether the lowest level twitter
-	 * functionality is working
+	 * functionality is working. It isn't reliably.
 	 * @throws InterruptedException 
 	 */
 	public void testSendMention2() throws InterruptedException{
@@ -745,10 +811,10 @@ extends TestCase // Comment out to remove the JUnit dependency
 		System.out.println(s4);
 		Thread.sleep(3000);
 	
-		Status s = jtwit.setStatus("@twittest2 Public hello "+ messageText + " " + time);
+		Status s = jtwit.setStatus("@jtwittest2 Public hello "+ messageText + " " + time);
 		Thread.sleep(1000);
 		System.out.println(s);
-		Status s2 = jtwit.setStatus("Public "+ messageText + " " + time + " v2 to @twittest2");
+		Status s2 = jtwit.setStatus("Public "+ messageText + " " + time + " v2 to @jtwittest2");
 		Thread.sleep(1000);
 		System.out.println(s2);
 		
@@ -778,8 +844,8 @@ extends TestCase // Comment out to remove the JUnit dependency
 					System.out.println("J2's biglist: "+ stat);
 				}
 			}
-		//This appears to be successful, both messages received
-		assert(success==2);
+			//This appears to be successful, both messages received
+			assert success==2 : success;
 		}
 		{
 //			new UserStream(jtwit2);
@@ -793,7 +859,7 @@ extends TestCase // Comment out to remove the JUnit dependency
 				}
 			}
 			// This fails, you can't get mentions this way.
-			assert (success == 0);
+			assert success == 0 : success;
 		}
 		
 	}
@@ -904,6 +970,18 @@ extends TestCase // Comment out to remove the JUnit dependency
 	 */
 	public void testGetStatusLong() {
 		Twitter tw = newTestTwitter();
+		{	// Test a specific tweet ("How are you Ntwanano? RT @Reg_Lulekz: Hello Dakalo @DakaloM_: Hello tweeps..." by dakalom_)
+			BigInteger bi = new BigInteger("236109584417292288");
+			Status toreg = tw.getStatus(bi);
+			System.out.println(toreg.text+" by "+toreg.user);
+		}
+		{	// Test with a twitter image
+			BigInteger bi = new BigInteger("230445874193518592"); //"273012511874363392");
+			Status toreg = tw.getStatus(bi);
+			System.out.println(toreg.text+" by "+toreg.user);
+			System.out.println(toreg.getDisplayText());
+			Printer.out(toreg.getTweetEntities(KEntityType.urls));
+		}
 		Status s = tw.getStatus();
 		Status s2 = tw.getStatus(s.getId());
 		assert s.text.equals(s2.text) : "Fetching a status by id should yield correct text";
@@ -1123,9 +1201,10 @@ extends TestCase // Comment out to remove the JUnit dependency
 				
 		String s = "Experimenting "+salt+" (http://winterwell.com at "+new Date().toString()+")";
 		Status s2a = tw.updateStatus(s);
-		Status s2b = tw.getStatus();
-		assert s2b.text.startsWith("Experimenting "+salt) : s2b.text;
-		assert s2a.id.equals(s2b.id) : s2a+" vs "+s2b;
+//		Status s2b = tw.getStatus(); // There's a lag!
+		assert s2a.text.startsWith("Experimenting "+salt) : s2a.text;
+//		assert s2b.text.startsWith("Experimenting "+salt) : s2b.text;
+//		assert s2a.id.equals(s2b.id) : s2a+" vs "+s2b;
 		//		assert s2b.source.equals("web") : s2b.source;
 	}
 
@@ -1380,5 +1459,22 @@ extends TestCase // Comment out to remove the JUnit dependency
 			assert ! ms.isEmpty();
 		}
 	}
-
+	
+	public void testPostToTwitterWithMedia(){
+		{
+			Twitter tw = newTestTwitter();
+			File t = new File("test/winterwell/jtwitter/samplejpg.jpg");
+			Printer.out(t.getAbsolutePath());
+			tw.updateStatusWithMedia(
+					"A test tweet " + Utils.getRandomString(5), null, t);
+		}
+		{
+			Twitter tw = newTestTwitter();
+			File t = new File("test/winterwell/jtwitter/samplepng.png");
+			Printer.out(t.getAbsolutePath());
+			tw.updateStatusWithMedia(
+					"A test tweet " + Utils.getRandomString(5), null, t);
+		}		
+	}
+	
 }

@@ -14,15 +14,17 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-
 import winterwell.json.JSONArray;
 import winterwell.json.JSONException;
 import winterwell.json.JSONObject;
-import winterwell.jtwitter.Twitter.KEntityType;
 import winterwell.jtwitter.TwitterException.E401;
 import winterwell.jtwitter.TwitterException.E403;
 import winterwell.jtwitter.TwitterException.E404;
 import winterwell.jtwitter.TwitterException.SuspendedUser;
+<<<<<<< HEAD
+=======
+import winterwell.jtwitter.ecosystem.TwitLonger;
+>>>>>>> jtwitter-master
 
 /**
  * Java wrapper for the Twitter API version {@value #version}
@@ -386,7 +388,9 @@ public class Twitter implements Serializable {
 		/** this is X-Feature Class "namesearch" in the response headers */
 		SEARCH_USERS("Feature"), 
 		SHOW_USER(""), 
-		UPLOAD_MEDIA("Media");
+		UPLOAD_MEDIA("Media"),
+		STREAM_KEYWORD(""),
+		STREAM_USER("");
 
 		/**
 		 * USed to find the X-?RateLimit header.
@@ -499,9 +503,25 @@ public class Twitter implements Serializable {
 			// Protect against (rare) dud data from Twitter
 			_end = Math.min(_end, rawText.length());
 			_start = Math.min(_start, _end);
-			if (_start==_end) { // paranoia
-				start = _start; 
-				end = _end;
+			if (_start==_end) { // paranoia -- but it happens (last seen Oct 2012; see TwitterTest)
+				// Guess blindly by type!
+				switch(type) {
+				case hashtags:
+					break;
+				case urls:
+					Matcher m = InternalUtils.URL_REGEX.matcher(text);
+					if (m.find()) {
+						start = m.start();
+						end = m.end();
+						return;
+					}
+					break;
+				case user_mentions:
+					break;
+				}
+				// Fail
+				end = Math.min(_end, text.length());
+				start = Math.min(_start, end);
 				return;
 			}
 				
@@ -572,11 +592,17 @@ public class Twitter implements Serializable {
 	 */
 	public static boolean CASE_SENSITIVE_SCREENNAMES;
 
-	static final Pattern contentTag = Pattern.compile(
-			"<content>(.+?)<\\/content>", Pattern.DOTALL);
-
-	static final Pattern idTag = Pattern.compile("<id>(.+?)<\\/id>",
-			Pattern.DOTALL);
+	/**
+	 * This global toggle switches on/off length-checking for tweets.
+	 * <p>
+	 * To avoid wasting time or API rate-limit usage, JTwitter can check that outgoing
+	 * tweets meet the maximum-length restriction. Set this to false to disable that
+	 * check (Twitter will still apply their own check!). 
+	 * <p>
+	 * true by default.
+	 * @see #countCharacters(String)
+	 */
+	public static boolean CHECK_TWEET_LENGTH = true;
 
 	/**
 	 * The length of a url after t.co shortening. Currently 20 characters.
@@ -586,7 +612,7 @@ public class Twitter implements Serializable {
 	 */
 	public static int LINK_LENGTH = 20;
 
-	public static long PHOTO_SIZE_LIMIT;
+	public static long PHOTO_SIZE_LIMIT = 3145728L; // 3mb
 
 	public static final String SEARCH_MIXED = "mixed";
 
@@ -604,7 +630,7 @@ public class Twitter implements Serializable {
 	/**
 	 * JTwitter version
 	 */
-	public final static String version = "2.6.6";
+	public final static String version = "2.6.10";
 
 	/**
 	 * The maximum number of characters that a tweet can contain.
@@ -716,20 +742,42 @@ public class Twitter implements Serializable {
 
 	boolean tweetEntities = true;
 
-	private String twitlongerApiKey;
+	@Deprecated // Keeping for backwards compatibility of serialised form until Q2 2013
+	private transient String twitlongerApiKey;
 
-	private String twitlongerAppName;
+	@Deprecated // Keeping for backwards compatibility of serialised form until Q2 2013
+	private transient String twitlongerAppName;
 
 	/**
 	 * Change this to access sites other than Twitter that support the Twitter
-	 * API. <br>
-	 * Note: Does not include the final "/"
+	 * API, or to set which version of the API you want to use.<br>
+	 * Note: Does not include the final "/"<br>
+	 * 
+	 * <h3>Which API version to use?</h3>
+	 * Twitter have decided that API version 1.0 will switch off on <b>March 5th, 2013</b>.<br>
+	 * Version 1.1 is stricter about authentication, and has removed some methods :(
+	 * <p>
+	 * In JTwitter, we will keep v1.0 as the default until 2013, then make 1.1 the default.
+	 * You can take matters into your own hands if you like by setting this field.
+	 * <p>
+	 * Ref: https://dev.twitter.com/docs/api/1.1/overview#Deprecation_of_v1.0_of_the_API
 	 */
 	String TWITTER_URL = "http://api.twitter.com/1";
 
 	private Date untilDate;
 
 	private Number untilId;
+
+	private Long placeId;
+	
+	/**
+	 * If set, this will place-id be sent with status-updates to geo-tag your tweets.
+	 * @param placeId Can be null (which is the default)
+	 * @see #setMyLocation(double[])
+	 */
+	public void setMyPlace(Long placeId) {
+		this.placeId = placeId;
+	}
 
 	/**
 	 * Create a Twitter client without specifying a user. This is an easy way to
@@ -1245,6 +1293,7 @@ public class Twitter implements Serializable {
 	}
 
 	/**
+	 * @deprecated Use {@link TwitLonger}
 	 * @param truncatedStatus
 	 *            If this is a twitlonger.com truncated status, then call
 	 *            twitlonger to fetch the full text.
@@ -1253,20 +1302,8 @@ public class Twitter implements Serializable {
 	 * @see #updateLongStatus(String, long)
 	 */
 	public String getLongStatus(Status truncatedStatus) {
-		// regex for http://tl.gd/ID
-		int i = truncatedStatus.text.indexOf("http://tl.gd/");
-		if (i == -1)
-			return truncatedStatus.text;
-		String id = truncatedStatus.text.substring(i + 13).trim();
-		String response = http.getPage("http://www.twitlonger.com/api_read/"
-				+ id, null, false);
-		Matcher m = contentTag.matcher(response);
-		boolean ok = m.find();
-		if (!ok)
-			throw new TwitterException.TwitLongerException(
-					"TwitLonger call failed", response);
-		String longMsg = m.group(1).trim();
-		return longMsg;
+		TwitLonger tl = new TwitLonger();
+		return tl.getLongStatus(truncatedStatus);
 	}
 
 	/**
@@ -1329,17 +1366,15 @@ public class Twitter implements Serializable {
 		return msgs;
 	}
 
-	/**
-	 * Returns the 20 most recent statuses from non-protected users who have set
-	 * a custom user icon. Does not require authentication.
-	 * <p>
-	 * Note: Twitter cache-and-refresh this every 60 seconds, so there is little
-	 * point calling it more frequently than that.
-	 */
-	public List<Status> getPublicTimeline() throws TwitterException {
-		return getStatuses(TWITTER_URL + "/statuses/public_timeline.json",
-				standardishParameters(), false);
-	}
+//	/**
+//	 * Removed from Twitter :(
+//	 * Use TwitterStream instead to get a sample.
+//	 */
+	// Note: we don't wrap TwitterStream here, because TwitterStreams are restricted to 1 at a time.  
+//	public List<Status> getPublicTimeline() throws TwitterException {
+//		return getStatuses(TWITTER_URL + "/statuses/public_timeline.json",
+//				standardishParameters(), false);
+//	}
 
 	/**
 	 * What is the current rate limit status? Do we need to throttle back our
@@ -1577,6 +1612,11 @@ public class Twitter implements Serializable {
 	 * @return The current status of the user. Warning: this is null if (a)
 	 *         unset (ie if this user has never tweeted), or (b) their last six
 	 *         tweets were all new-style retweets!
+	 * @see #getUserTimeline()
+	 * <p>
+	 * Minor Warning: There can be a very slight delay in Twitter for a status-update 
+	 * to take effect (i.e. for the tweet to become visible). Which means if you have
+	 * *just* called updateStatus(), then getStatus() may not match.  
 	 */
 	public Status getStatus() throws TwitterException {
 		Map<String, String> vars = InternalUtils.asMap("count", 6);
@@ -1596,10 +1636,11 @@ public class Twitter implements Serializable {
 	 *            The numerical ID of the status you're trying to retrieve.
 	 */
 	public Status getStatus(Number id) throws TwitterException {
+		boolean auth = InternalUtils.authoriseIn11(this);
 		Map vars = tweetEntities ? InternalUtils.asMap("include_entities", "1")
 				: null;
 		String json = http.getPage(TWITTER_URL + "/statuses/show/" + id
-				+ ".json", vars, http.canAuthenticate());
+				+ ".json", vars, auth);
 		try {
 			return new Status(new JSONObject(json), null);
 		} catch (JSONException e) {
@@ -1884,9 +1925,9 @@ public class Twitter implements Serializable {
 	}
 
 	/**
+	 * @deprecated 
 	 * @see Twitter_Users#isFollower(String, String)
 	 */
-	@Deprecated
 	public boolean isFollower(String followerScreenName,
 			String followedScreenName) {
 		return users().isFollower(followerScreenName, followedScreenName);
@@ -1959,10 +2000,13 @@ public class Twitter implements Serializable {
 	}
 
 	/**
+	 * @deprecated Use {@link TwitLonger}
+	 * Keeping for backwards compatibility until Q2 2013
+	 * 
 	 * @return true if {@link #setupTwitlonger(String, String)} has been used to
 	 *         provide twitlonger.com details.
 	 * @see #updateLongStatus(String, long)
-	 */
+	 */	
 	public boolean isTwitlongerSetup() {
 		return twitlongerApiKey != null && twitlongerAppName != null;
 	}
@@ -2085,7 +2129,7 @@ public class Twitter implements Serializable {
 			throw new IllegalArgumentException(
 					"You need to switch on paging to fetch more than 100 search results. First call setMaxResults() to raise the limit above "
 							+ rpp);
-		searchTerm = search2_bugHack(searchTerm);
+//		searchTerm = search2_bugHack(searchTerm);
 		Map<String, String> vars;
 		if (maxResults < 100 && maxResults > 0) {
 			// Default: 1 page
@@ -2137,7 +2181,8 @@ public class Twitter implements Serializable {
 		return allResults;
 	}
 
-	/**
+	/* DISABLED, but kept in code, just in case.
+	 * 
 	 * This fixes a couple of bugs in Twitter's search API:
 	 * 
 	 * 1. Searches using OR and a location return gibberish, unless they also
@@ -2154,8 +2199,9 @@ public class Twitter implements Serializable {
 	 * @param searchTerm
 	 * @return e.g. "apples OR pears" (near Edinburgh) goes to
 	 *         "apples OR pears -kfz" (near Edinburgh)
-	 */
+	 
 	private String search2_bugHack(String searchTerm) {
+//		if (true) return searchTerm; TODO Looks like this is no longer needed (quick test, 4th Nov 2012)
 		// zero-length is valid with location
 		if (searchTerm.length()==0)
 			return searchTerm;
@@ -2170,7 +2216,7 @@ public class Twitter implements Serializable {
 		// hopefully fine as-is
 		return searchTerm;
 	}
-
+*/
 	/**
 	 * @see Twitter_Users#searchUsers(String)
 	 */
@@ -2184,7 +2230,7 @@ public class Twitter implements Serializable {
 	 * authenticating user. This is a private message!
 	 * 
 	 * @param recipient
-	 *            Required. The screen name of the recipient user.
+	 *            Required. The screen name of the recipient user. This does *not* start with an "@".
 	 * @param text
 	 *            Required. The text of your direct message. Keep it under 140
 	 *            characters! This should *not* include the "d username" portion
@@ -2193,10 +2239,10 @@ public class Twitter implements Serializable {
 	 *             if the recipient is not following you. (you can \@mention
 	 *             anyone but you can only dm people who follow you).
 	 */
-	public Message sendMessage(String recipient, String text)
-			throws TwitterException {
+	public Message sendMessage(String recipient, String text) throws TwitterException {
 		assert recipient != null && text != null : recipient + " " + text;
-		assert !text.startsWith("d " + recipient) : recipient + " " + text;
+		assert ! text.startsWith("d " + recipient) : recipient + " " + text;
+		assert ! recipient.startsWith("@") : recipient + " " + text;
 		if (text.length() > 140)
 			throw new IllegalArgumentException("Message is too long.");
 		Map<String, String> vars = InternalUtils.asMap("user", recipient,
@@ -2227,10 +2273,10 @@ public class Twitter implements Serializable {
 	 * 
 	 * @param url
 	 *            Format: "http://domain-name", e.g. "http://twitter.com" by
-	 *            default.
+	 *            default. Or https
 	 */
 	public void setAPIRootUrl(String url) {
-		assert url.startsWith("http://") || url.startsWith("https://");
+		assert url.startsWith("http://") || url.startsWith("https://") : url;
 		assert !url.endsWith("/") : "Please remove the trailing / from " + url;
 		TWITTER_URL = url;
 	}
@@ -2247,18 +2293,25 @@ public class Twitter implements Serializable {
 		this.count = count;
 	}
 
-	public void setFavorite(Status status, boolean isFavorite) {
+	/**
+	 * 
+	 * @param status The status to favorite. Technical note: Only the ID is needed, so you can use a "fake" Status object here. 
+	 * @param isFavorite
+	 * @return updated Status, or null if you'd already starred this status. 
+	 */
+	public Status setFavorite(Status status, boolean isFavorite) {
 		try {
 			String uri = isFavorite ? TWITTER_URL + "/favorites/create/"
 					+ status.id + ".json" : TWITTER_URL + "/favorites/destroy/"
 					+ status.id + ".json";
-			http.post(uri, null, true);
+			String json = http.post(uri, null, true);
+			return new Status(new JSONObject(json), null);
 		} catch (E403 e) {
 			// already a favorite?
 			if (e.getMessage() != null
-					&& e.getMessage().contains("already favorited"))
-				throw new TwitterException.Repetition(
-						"You have already favorited this status.");
+					&& e.getMessage().contains("already favorited")) {
+				return null;
+			}
 			// just a normal 403
 			throw e;
 		}
@@ -2397,6 +2450,7 @@ public class Twitter implements Serializable {
 	 * Date based filter on statuses and messages. This is done client-side as
 	 * Twitter have - for their own inscrutable reasons - pulled support for
 	 * this feature. Use {@link #setSinceId(Number)} for preference.
+	 * You can use both constraints together.
 	 * <p>
 	 * If using this, you probably also want to increase
 	 * {@link #setMaxResults(int)} - otherwise you get at most 20, and possibly
@@ -2412,13 +2466,16 @@ public class Twitter implements Serializable {
 
 	/**
 	 * Narrows the returned results to just those statuses created after the
-	 * specified status id. This will be used until it is set to null. Default
+	 * specified status id. This will be used until it is set to null. The default
 	 * is null.
 	 * <p>
-	 * If using this, you probably also want to increase
-	 * {@link #setMaxResults(int)} (otherwise you just get the most recent 20).
+	 * If using this, you probably also want to use {@link #setUntilId(Number)}.
+	 * Twitter returns the most recent results, so this has little effect unless 
+	 * used with setUntilId().
+	 * You may also want to increase {@link #setMaxResults(int)}.
 	 * 
 	 * @param statusId
+	 * @see #setSinceDate(Date)
 	 */
 	public void setSinceId(Number statusId) {
 		sinceId = statusId;
@@ -2475,8 +2532,19 @@ public class Twitter implements Serializable {
 	public void setUntilId(Number untilId) {
 		this.untilId = untilId;
 	}
+	
+	public Number getUntilId() {
+		return untilId;
+	}
+	
+	public Number getSinceId() {
+		return sinceId;
+	}
 
 	/**
+	 * @deprecated User {@link TwitLonger}
+	 * Keeping for backwards compatibility until Q2 2013
+	 *  
 	 * Set this to allow the use of twitlonger via
 	 * {@link #updateLongStatus(String, long)}. To get an api-key for your app,
 	 * contact twitlonger as described here: http://www.twitlonger.com/api
@@ -2601,6 +2669,9 @@ public class Twitter implements Serializable {
 	}
 
 	/**
+	 * @deprecated Use {@link TwitLonger}  
+	 * Keeping for backwards compatibility until Q2 2013
+	 * 
 	 * Use twitlonger.com to post a lengthy tweet. See twitlonger.com for more
 	 * details on their service.
 	 * <p>
@@ -2615,58 +2686,8 @@ public class Twitter implements Serializable {
 	 * @see #setupTwitlonger(String, String)
 	 */
 	public Status updateLongStatus(String message, Number inReplyToStatusId) {
-		if (twitlongerApiKey == null || twitlongerAppName == null)
-			throw new IllegalStateException(
-					"Twitlonger api details have not been set! Call #setupTwitlonger() first.");
-		if (message.length() < 141)
-			throw new IllegalArgumentException("Message too short ("
-					+ inReplyToStatusId
-					+ " chars). Just post a normal Twitter status. ");
-		String url = "http://www.twitlonger.com/api_post";
-		Map<String, String> vars = InternalUtils.asMap("application",
-				twitlongerAppName, "api_key", twitlongerApiKey, "username",
-				name, "message", message);
-		if (inReplyToStatusId != null && inReplyToStatusId.doubleValue() != 0) {
-			vars.put("in_reply", inReplyToStatusId.toString());
-		}
-		// ?? set direct_message 0/1 as appropriate if allowing long DMs
-		String response = http.post(url, vars, false);
-		Matcher m = contentTag.matcher(response);
-		boolean ok = m.find();
-		if (!ok)
-			throw new TwitterException.TwitLongerException(
-					"TwitLonger call failed", response);
-		String shortMsg = m.group(1).trim();
-
-		// Post to Twitter
-		Status s = updateStatus(shortMsg, inReplyToStatusId);
-
-		m = idTag.matcher(response);
-		ok = m.find();
-		if (!ok)
-			// weird - but oh well
-			return s;
-		String id = m.group(1);
-
-		// Once a message has been successfully posted to Twitlonger and
-		// Twitter, it would be really useful to send back the Twitter ID for
-		// the message. This will allow users to manage their Twitlonger posts
-		// and delete not only the Twitlonger post, but also the Twitter post
-		// associated with it. It will also makes replies much more effective.
-		try {
-			url = "http://www.twitlonger.com/api_set_id";
-			vars.remove("message");
-			vars.remove("in_reply");
-			vars.remove("username");
-			vars.put("message_id", "" + id);
-			vars.put("twitter_id", "" + s.getId());
-			http.post(url, vars, false);
-		} catch (Exception e) {
-			// oh well
-		}
-
-		// done
-		return s;
+		TwitLonger tl = new TwitLonger(this, twitlongerApiKey, twitlongerAppName);
+		return tl.updateLongStatus(message, inReplyToStatusId);
 	}
 
 	/**
@@ -2732,8 +2753,31 @@ public class Twitter implements Serializable {
 	public Status updateStatus(String statusText, Number inReplyToStatusId)
 			throws TwitterException 
 	{		
+		Map<String, String> vars = updateStatus2_vars(statusText, inReplyToStatusId);
+		String result = http.post(TWITTER_URL + "/statuses/update.json", vars,
+					true);
+		try {
+			Status s = new Status(new JSONObject(result), null);
+			s = updateStatus2_safetyCheck(statusText, s);
+			return s;
+		} catch (JSONException e) {
+			throw new TwitterException.Parsing(result, e);
+		}
+	}
+
+	/**
+	 * Check statusText & prep the parameters
+	 * @param statusText
+	 * @param inReplyToStatusId
+	 * @return The vars to send
+	 */
+	private Map<String, String> updateStatus2_vars(String statusText, Number inReplyToStatusId) 
+	{
 		// check for length
-		if (statusText.length() > MAX_CHARS) {
+		if (statusText.length() > MAX_CHARS 
+				&& TWITTER_URL.contains("twitter") // Hack: allow long posts to WordPress
+				&& CHECK_TWEET_LENGTH)  
+		{
 			int shortLength = countCharacters(statusText);
 			if (shortLength > MAX_CHARS) {
 				// bogus - send a helpful error
@@ -2756,6 +2800,9 @@ public class Twitter implements Serializable {
 			vars.put("lat", Double.toString(myLatLong[0]));
 			vars.put("long", Double.toString(myLatLong[1]));
 		}
+		if (placeId != null) {
+			vars.put("place_id", Long.toString(placeId));
+		}
 
 		if (sourceApp != null) {
 			vars.put("source", sourceApp);
@@ -2766,15 +2813,7 @@ public class Twitter implements Serializable {
 			assert v != 0 && v != -1;
 			vars.put("in_reply_to_status_id", inReplyToStatusId.toString());
 		}
-		String result = http.post(TWITTER_URL + "/statuses/update.json", vars,
-					true);
-		try {
-			Status s = new Status(new JSONObject(result), null);
-			s = updateStatus2_safetyCheck(statusText, s);
-			return s;
-		} catch (JSONException e) {
-			throw new TwitterException.Parsing(result, e);
-		}
+		return vars;
 	}
 
 	/**
@@ -2833,59 +2872,29 @@ public class Twitter implements Serializable {
 
 
 	/**
-	 * @deprecated Still developing!
 	 * Updates the authenticating user's status with an image (or other media file / attachment).
 	 * 
 	 * @param statusText
+	 * @param inReplyToStatusId Can be null.
 	 * @param mediaFile
 	 * @return The posted status when successful.
 	 */
-	// c.f. 	// c.f. https://dev.twitter.com/discussions/1059
-	// TODO
-	Status updateStatusWithMedia(String statusText, Number inReplyToStatusId,
-			File mediaFile) {
-
-		// should we trim statusText??
-		// TODO support URL shortening
-		if (statusText.length() > MAX_CHARS && countCharacters(statusText) > MAX_CHARS) {			
-			throw new IllegalArgumentException(
-					"Status text must be "+MAX_CHARS+" characters or less: "
-							+ statusText.length() + " " + statusText);
+	// c.f. https://dev.twitter.com/docs/api/1/post/statuses/update_with_media 	
+	// c.f. https://dev.twitter.com/discussions/1059
+	public Status updateStatusWithMedia(String statusText, BigInteger inReplyToStatusId, File mediaFile) {
+		if (mediaFile==null || ! mediaFile.isFile()) {
+			throw new IllegalArgumentException("Invalid file: "+mediaFile);
 		}
-		if (mediaFile != null && ! mediaFile.isFile()) {
-			throw new IllegalArgumentException("Not a valid file: "+mediaFile);
-		}
-
-		Map<String, String> vars = InternalUtils.asMap("status", statusText);
-		
-		if (tweetEntities) vars.put("include_entities", "1");
-		
-		// add in long/lat if set
-		if (myLatLong != null) {
-			vars.put("lat", Double.toString(myLatLong[0]));
-			vars.put("long", Double.toString(myLatLong[1]));
-		}
-
-		if (sourceApp != null) {
-			vars.put("source", sourceApp);
-		}
-		if (inReplyToStatusId != null) {
-			// TODO remove this legacy check
-			double v = inReplyToStatusId.doubleValue();
-			assert v != 0 && v != -1;
-			vars.put("in_reply_to_status_id", inReplyToStatusId.toString());
-		}
-		// media[]
-		// possibly_sensitive
-		// place_id
-		// display_coordinates
+		Map vars = updateStatus2_vars(statusText, inReplyToStatusId);
+		vars.put("media[]", mediaFile);
+		// TODO possibly_sensitive
+		// TODO display_coordinates
 		String result = null;
-		try {
-			result = http
-					.post( // WithMedia
-					// TWITTER_URL +
-					"http://upload.twitter.com/1/statuses/update_with_media.json",
-							vars, true);
+		try {			
+			result = ((OAuthSignpostClient)http)
+					.postMultipartForm(
+					"https://upload.twitter.com/1/statuses/update_with_media.json",
+							vars);
 			Status s = new Status(new JSONObject(result), null);
 			return s;
 		} catch (E403 e) {

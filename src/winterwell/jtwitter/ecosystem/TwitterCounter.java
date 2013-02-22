@@ -6,14 +6,13 @@ import java.util.Map;
 import winterwell.json.JSONException;
 import winterwell.json.JSONObject;
 import winterwell.jtwitter.InternalUtils;
+import winterwell.jtwitter.Twitter.IHttpClient;
 import winterwell.jtwitter.TwitterException;
 import winterwell.jtwitter.URLConnectionHttpClient;
-import winterwell.jtwitter.Twitter.IHttpClient;
 
 /**
- * 
+ * Client for the twittercounter.com service
  * @author daniel
- *
  */
 public class TwitterCounter {
 

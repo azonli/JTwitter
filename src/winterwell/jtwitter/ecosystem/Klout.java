@@ -6,9 +6,14 @@ import java.util.Map;
 import winterwell.json.JSONArray;
 import winterwell.json.JSONObject;
 import winterwell.jtwitter.InternalUtils;
-import winterwell.jtwitter.URLConnectionHttpClient;
 import winterwell.jtwitter.Twitter.IHttpClient;
+import winterwell.jtwitter.URLConnectionHttpClient;
 
+/**
+ * Klout influence scores -- not very reliable, but then what is?
+ * @author daniel
+ * @testedby {@link KloutTest}
+ */
 public class Klout {
 
 	final String API_KEY;

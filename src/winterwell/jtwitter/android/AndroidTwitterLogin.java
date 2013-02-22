@@ -9,12 +9,10 @@ import android.app.Dialog;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.net.Uri;
-import android.os.AsyncTask;
 import android.os.Handler;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.ViewGroup;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
@@ -64,7 +62,7 @@ public abstract class AndroidTwitterLogin {
 		this.context = myActivity;
 		consumerKey =  oauthAppKey;
 		consumerSecret = oauthAppSecret;
-		this.callbackUrl = "http://example.com"; //calbackUrl;					
+		this.callbackUrl = calbackUrl;					
 		client = new OAuthSignpostClient(consumerKey, consumerSecret, callbackUrl);		
 	}
 	 

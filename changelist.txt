@@ -1,10 +1,41 @@
 # JTwitter Change list 
 
+2.6.10:
+ - Use the callback url in AndroidTwitterLogin
+ - Twitter.users().getFriends() can work by user-id as well as by screenname
+ 
+2.6.9:
+ - Repeated favorite (star) does not generate an error. Instead the Twitter.setFavorite() return value is null.
+ - STREAM is a request type (for completeness + convenience of some use-cases).
+ - TwitLonger support refactored into a separate class.
+ - Catch Twitter-is-completely-hosed error pages & throw an E50X instead of a ParsingException
+ 
+2.6.8:
+ - Image upload! See Twitter.updateStatusWithMedia()
+ - Started coding around the 1.0 / 1.1 switch. API version 1.0 will remain valid until March 5th, 2013.
+ - Removed methods switched off by Twitter: 
+	Twitter.getPublicTimeline()
+	Twitter_Users.getFeatured()
+ - Added Twitter.CHECK_TWEET_LENGTH to allow disabling of length-checking.
+ - Twitter now send DMs as part of a UserStream. Hurrah! It only took them a year to catch up with their documentation. 
+ UserStream is still deprecated, because Twitter still have bugs & the returned results are unreliable.
+ - Added the disconnect event to the system events handled by AStream
+ - AStream handles unknown system events gracefully.
+ - Location.parse() is more robust around bad-coordinates.
+ 
+2.6.7:
+ - Added Twitter.getSinceId() and Twitter.getUntilId()
+ 
 2.6.6:
  - Moved the support for deprecated oauth libraries, OAuthHttpClient.java and OAuthScribeClient.java, 
  into a separate source code folder, src-extra, and EXCLUDED them from jtwitter.jar.
  This fixes a Proguard issue reported by Ben Randall. 
  You can still compile and use them.
+ - Added setMyPlace() to complement setMyLocation()
+ - Added BoundingBox.isPoint()
+ - Support for some odd WordPress return values.
+ - Allow long posts to WordPress.
+ - Fixes a bug in Twitter where short urls lead to bogus TweetEntity offsets.
  
 2.6.5:
  - Twitter_Users.show() handles the 404 which you get if all the usernames are deleted

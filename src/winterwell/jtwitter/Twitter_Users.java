@@ -7,7 +7,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-
 import winterwell.json.JSONArray;
 import winterwell.json.JSONException;
 import winterwell.json.JSONObject;
@@ -71,6 +70,8 @@ public class Twitter_Users {
 	 */
 	List<User> bulkShow2(String apiMethod, Class stringOrNumber,
 			Collection screenNamesOrIds) {
+		// Requires authentication in v1.1, though not in 1 which is still usable
+		boolean auth = InternalUtils.authoriseIn11(jtwit);
 		int batchSize = 100;
 		ArrayList<User> users = new ArrayList<User>(screenNamesOrIds.size());
 		List _screenNamesOrIds = screenNamesOrIds instanceof List ? (List) screenNamesOrIds
@@ -82,8 +83,7 @@ public class Twitter_Users {
 					: "user_id";
 			Map<String, String> vars = InternalUtils.asMap(var, names);
 			try {
-				String json = http.getPage(jtwit.TWITTER_URL + apiMethod, vars,
-						http.canAuthenticate());
+				String json = http.getPage(jtwit.TWITTER_URL + apiMethod, vars, auth);
 				List<User> usersi = User.getUsers(json);
 				users.addAll(usersi);
 			} catch (TwitterException.E404 e) {
@@ -178,22 +178,18 @@ public class Twitter_Users {
 		}
 	}
 
-	/**
-	 * Returns a list of the users currently featured on the site with their
-	 * current statuses inline.
-	 * <p>
-	 * Note: This is no longer part of the Twitter API. Support is provided via
-	 * other methods.
-	 */
-	public List<User> getFeatured() throws TwitterException {
-		List<User> users = new ArrayList<User>();
-		List<Status> featured = jtwit.getPublicTimeline();
-		for (Status status : featured) {
-			User user = status.getUser();
-			users.add(user);
-		}
-		return users;
-	}
+//	/**
+//	 * This is no longer a Twitter feature.
+//	 */
+//	public List<User> getFeatured() throws TwitterException {
+//		List<User> users = new ArrayList<User>();
+//		List<Status> featured = jtwit.getPublicTimeline();
+//		for (Status status : featured) {
+//			User user = status.getUser();
+//			users.add(user);
+//		}
+//		return users;
+//	}
 
 	/**
 	 * Returns the IDs of the authenticating user's followers.
@@ -241,6 +237,7 @@ public class Twitter_Users {
 	}
 
 	/**
+	 * @deprecated Only available in v1.0 API (due to switch off soon).
 	 * 
 	 * Returns the (latest 100) given user's followers, each with current status
 	 * inline. Occasionally contains duplicates.
@@ -250,7 +247,6 @@ public class Twitter_Users {
 	 *            friends.
 	 * @throws TwitterException
 	 */
-
 	public List<User> getFollowers(String username) throws TwitterException {
 		return getUsers(jtwit.TWITTER_URL + "/statuses/followers.json",
 				username);
@@ -310,6 +306,7 @@ public class Twitter_Users {
 	}
 
 	/**
+	 * @deprecated Only available in v1.0 API (due to switch off soon).
 	 * 
 	 * Returns the (latest 100) given user's friends (people *they* follow), 
 	 * each with current status inline. Occasionally contains duplicates.

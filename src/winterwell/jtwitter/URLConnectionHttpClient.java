@@ -2,8 +2,6 @@ package winterwell.jtwitter;
 
 import java.io.BufferedReader;
 import java.io.Closeable;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -24,7 +22,6 @@ import java.util.Map.Entry;
 import winterwell.json.JSONObject;
 import winterwell.jtwitter.Twitter.KRequestType;
 import winterwell.jtwitter.guts.Base64Encoder;
-import winterwell.jtwitter.guts.ClientHttpRequest;
 
 /**
  * A simple http client that uses the built in URLConnection class.
@@ -291,32 +288,8 @@ public class URLConnectionHttpClient implements Twitter.IHttpClient,
 	}
 	
 
-	/**
-	 * @param uri
-	 * @param vars Can include File values
-	 * @return
-	 * @throws TwitterException
-	 */
-	//@Override
-	public final String postMultipartForm(String url, Map<String, ?> vars) 
-			throws TwitterException 
-	{
-		try {
-			HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
-			
-			// FIXME oauth authenticate!
-			setAuthentication(connection, name, password);
-			
-			ClientHttpRequest req = new ClientHttpRequest(connection);
-			InputStream page = req.post(vars);
-			processError(connection);
-			return InternalUtils.toString(page);
-		} catch (TwitterException e) {
-			throw e;
-		} catch (Exception e) {
-			throw new TwitterException(e);
-		}
-	}
+
+
 
 	@Override
 	public final String post(String uri, Map<String, String> vars,
@@ -392,10 +365,25 @@ public class URLConnectionHttpClient implements Twitter.IHttpClient,
 		return connection;
 	}
 
+	/**
+	 * 
+	 * @param vars Keys & values will be url-encoded. 
+	 * Special case: if there is 1 key "", then just the value is returned (url-encoded).
+	 * @return
+	 */
 	protected String post2_getPayload(Map<String, String> vars) {
 		if (vars == null || vars.isEmpty())
 			return "";
 		StringBuilder encodedData = new StringBuilder();
+		
+		// Special case: Just send a body (no key-value encoding)?
+		if (vars.size()==1) {
+			String key = vars.keySet().iterator().next();
+			if ("".equals(key)) {
+				String val = InternalUtils.encode(vars.get(key));
+				return val;
+			}
+		}
 
 		for (String key : vars.keySet()) {
 			String val = InternalUtils.encode(vars.get(key));
@@ -427,6 +415,10 @@ public class URLConnectionHttpClient implements Twitter.IHttpClient,
 					throw new TwitterException.UpdateToOAuth();
 				throw new TwitterException.E401(error + "\n" + url + " ("
 						+ (name == null ? "anonymous" : name) + ")");
+			}
+			if (code == 400 && error.contains("215")) {
+				// Twitter-error-code 215 "Bad Authentication data" uses http-code 400, though 401 makes more sense.
+				throw new TwitterException.E401(error);
 			}
 			if (code == 403) {
 				// separate out the 403 cases
@@ -598,9 +590,14 @@ public class URLConnectionHttpClient implements Twitter.IHttpClient,
 	 */
 	protected void setAuthentication(URLConnection connection, String name,
 			String password) {
-		assert name != null && password != null : "Authentication requested but no login details are set!";
+		if (name==null || password==null) {
+			// You probably want to use OAuthSignpostClient!
+			throw new TwitterException.E401("Authentication requested but no authorisation details are set!");
+		}
 		String token = name + ":" + password;
 		String encoding = Base64Encoder.encode(token);
+		// Hack for http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=6459815
+		encoding = encoding.replace("\r\n", "");
 		connection.setRequestProperty("Authorization", "Basic " + encoding);
 	}
 

@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-
 import winterwell.json.JSONArray;
 import winterwell.json.JSONException;
 import winterwell.json.JSONObject;
@@ -58,6 +57,10 @@ public final class Status implements ITweet {
 			}
 			return tweets;
 		} catch (JSONException e) {
+			// Is it an html error page? E.g. when Twitter is really hosed
+			if (json.startsWith("<")) {
+				throw new TwitterException.E50X(InternalUtils.stripTags(json));
+			}
 			throw new TwitterException.Parsing(json, e);
 		}
 	}
@@ -165,12 +168,12 @@ public final class Status implements ITweet {
 	 * E.g. "web" vs. "im"<br>
 	 * For apps this will return an a-tag, e.g. 
 	 * "&lt;a href="http://blackberry.com/twitter" rel="nofollow"&gt;Twitter for BlackBerry®&lt;/a&gt;"
-	 * You'll probably want to discard the a-tag wrapper.
+	 * You'll probably want to discard the a-tag wrapper by using {@link #getSource()} instead.
 	 * <p>
 	 * "fake" if this Status was made locally or from an RSS feed rather than
 	 * retrieved from Twitter json (as normal).
 	 */
-	public final String source;
+	public final String source;	
 	
 	/** The actual status text. */
 	public final String text;
@@ -237,7 +240,7 @@ public final class Status implements ITweet {
 			source = src!=null&&src.contains("&lt;") ? InternalUtils.unencode(src) : src;
 			// threading
 			String irt = InternalUtils.jsonGet("in_reply_to_status_id", object);
-			if (irt == null) {
+			if (irt == null || irt.length()==0) {
 				// Twitter doesn't give in-reply-to for retweets
 				// - but since we have the info, let's make it available
 				inReplyToStatusId = original == null ? null : original.getId();
@@ -437,6 +440,18 @@ public final class Status implements ITweet {
 	@Override
 	public Place getPlace() {
 		return place;
+	}
+	
+
+	/**
+	 * E.g. "web" vs. "im"<br>
+	 * WARNING: this is different from the field {@link #source}. This method will remove the wrapping a-tag.
+	 * <p>
+	 * "fake" if this Status was made locally or from an RSS feed rather than
+	 * retrieved from Twitter json (as normal).
+	 */
+	public String getSource() {
+		return InternalUtils.stripTags(source);
 	}
 
 	/** The actual status text. This is also returned by {@link #toString()}.

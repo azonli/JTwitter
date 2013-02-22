@@ -3,17 +3,14 @@ package winterwell.jtwitter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import com.winterwell.jgeoplanet.IGeoCode;
-import com.winterwell.jgeoplanet.IPlace;
-import com.winterwell.jgeoplanet.MFloat;
 
 import winterwell.json.JSONArray;
 import winterwell.json.JSONException;
 import winterwell.json.JSONObject;
-import winterwell.jtwitter.Twitter.KRequestType;
+
+import com.winterwell.jgeoplanet.IGeoCode;
+import com.winterwell.jgeoplanet.IPlace;
+import com.winterwell.jgeoplanet.MFloat;
 
 /**
  * Twitter's geolocation support. Use {@link Twitter#geo()} to get one of these
@@ -59,8 +56,8 @@ public class Twitter_Geo implements IGeoCode {
 		if (accuracy != 0) {
 			vars.put("accuracy", String.valueOf(accuracy));
 		}
-		String json = jtwit.getHttpClient().getPage(url, vars,
-				jtwit.getHttpClient().canAuthenticate());
+		boolean auth = InternalUtils.authoriseIn11(jtwit);
+		String json = jtwit.getHttpClient().getPage(url, vars, auth);
 		try {
 			JSONObject jo = new JSONObject(json);
 			JSONObject jo2 = jo.getJSONObject("result");

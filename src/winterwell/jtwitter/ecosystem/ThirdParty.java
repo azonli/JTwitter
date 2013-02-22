@@ -5,16 +5,16 @@ import winterwell.json.JSONException;
 import winterwell.json.JSONObject;
 import winterwell.jtwitter.InternalUtils;
 import winterwell.jtwitter.Twitter;
-import winterwell.jtwitter.URLConnectionHttpClient;
 import winterwell.jtwitter.Twitter.IHttpClient;
 import winterwell.jtwitter.TwitterException;
+import winterwell.jtwitter.URLConnectionHttpClient;
 import winterwell.jtwitter.User;
 
 /**
  * Status: experimental! Access to 3rd party services:
  * 
- * - Infochimp Trust Rank scores - Twitlonger: Actually, this is done via
- * {@link Twitter#updateLongStatus(String, long)}
+ * - Infochimp Trust Rank scores
+ * - Twitlonger: Actually, this is done via {@link Twitter#updateLongStatus(String, long)}
  * 
  * Note: These services typically require their own api-keys and may have there
  * own terms and conditions of use.

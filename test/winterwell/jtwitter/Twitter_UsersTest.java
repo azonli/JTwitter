@@ -1,10 +1,7 @@
 package winterwell.jtwitter;
 
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import org.junit.Test;
 
@@ -22,7 +19,7 @@ public class Twitter_UsersTest {
 	 * This tested a bug in {@link OAuthSignpostClient}
 	 * @throws InterruptedException
 	 */
-	@Test
+//	@Test
 	public void tstFollowFollow() throws InterruptedException {
 		int lag = 2000; //300000;
 		OAuthSignpostClient client = new OAuthSignpostClient(
@@ -41,24 +38,6 @@ public class Twitter_UsersTest {
 		User u2 = tw.follow("winterstein");
 	}
 	
-
-	/**
-	 * Test the cursor-based API for getting many followers.
-	 * Slightly intermittent
-	 */
-	@Test
-	public void testGetManyFollowers() {
-		Twitter tw = TwitterTest.newTestTwitter();
-		tw.setMaxResults(10000); // we don't want to run the test for ever.
-		String victim = "psychovertical";
-		User user = tw.getUser(victim);
-		assert user.followersCount < 10000 : "More than 10000 followers; choose a different victim or increase the maximum results";
-		Set<User> followers = new HashSet(tw.getFollowers(victim));
-		Set<Long> followerIDs = new HashSet(tw.getFollowerIDs(victim));
-		// psychovertical has about 600 followers, as of 14/12/09
-		assert user.followersCount == followers.size();
-		assert user.followersCount == followerIDs.size();
-	}
 
 	/**
 	 * Test method for {@link winterwell.jtwitter.Twitter#getFriends(java.lang.String)}.
@@ -88,30 +67,30 @@ public class Twitter_UsersTest {
 		int lag = 1000; //300000;
 		Twitter tw = TwitterTest.newTestTwitter();
 		tw.flush();
-		List<User> friends = tw.getFriends();
-		if ( ! tw.isFollowing("winterstein")) {
-			tw.follow("winterstein");
+		List<User> friends = tw.users().getFriends();
+		if ( ! tw.users().isFollowing("winterstein")) {
+			tw.users().follow("winterstein");
 			Thread.sleep(lag);
 		}
 		assert tw.isFollowing("winterstein") : friends;
 
 		// Stop
-		User h = tw.stopFollowing("winterstein");
+		User h = tw.users().stopFollowing("winterstein");
 		assert h != null;
 		Thread.sleep(lag);
-		assert ! tw.isFollowing("winterstein") : friends;
+		assert ! tw.users().isFollowing("winterstein") : friends;
 
 		// break where no friendship exists
-		User h2 = tw.stopFollowing("winterstein");
+		User h2 = tw.users().stopFollowing("winterstein");
 		assert h2==null;
 
 		// Follow
-		tw.follow("winterstein");
+		tw.users().follow("winterstein");
 		Thread.sleep(lag);
-		assert tw.isFollowing("winterstein") : friends;
+		assert tw.users().isFollowing("winterstein") : friends;
 
 		try {
-			User suspended = tw.follow("Alysha6822");
+			User suspended = tw.users().follow("Alysha6822");
 			assert false : "Trying to follow a suspended user should throw an exception";
 		} catch (TwitterException e) {
 		}
@@ -127,24 +106,24 @@ public class Twitter_UsersTest {
 			System.out.println(e);
 		}
 		try {
-			tw.show("ykarya35a4wr");
+			tw.users().show("ykarya35a4wr");
 		} catch (SuspendedUser e) {
 		} catch (E404 e) {
 		}
 		List<User> users = tw.bulkShow(Arrays.asList("winterstein", "ykarya35a4wr"));
 		assert ! users.isEmpty();
 		try {
-			tw.isFollowing("ykarya35a4wr");
+			tw.users().isFollowing("ykarya35a4wr");
 		} catch (SuspendedUser e) {
 		} catch (E404 e) {
 		}
 		try {
-			tw.follow("ykarya35a4wr");
+			tw.users().follow("ykarya35a4wr");
 		} catch (SuspendedUser e) {
 		} catch (E404 e) {
 		}
 		try {
-			tw.stopFollowing("ykarya35a4wr");
+			tw.users().stopFollowing("ykarya35a4wr");
 		} catch (SuspendedUser e) {
 		} catch (E404 e) {
 		}
@@ -253,8 +232,9 @@ public class Twitter_UsersTest {
 				System.out.println(user.getScreenName()+"\t"+user.getLocation()+"\t"+user.getPlace()+"\t"+user.getId());
 			}
 		}
-		{	// anonymous
+		{	// anonymous -- only in version 1			
 			Twitter tw = new Twitter();
+			tw.setAPIRootUrl("http://api.twitter.com/1");
 			List<User> users = tw.users().show(Arrays.asList("joehalliwell","winterstein"));
 			for (User user : users) {
 				System.out.println(user.getScreenName()+"\t"+user.getLocation()+"\t"+user.getPlace()+"\t"+user.getId());

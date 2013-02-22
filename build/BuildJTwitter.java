@@ -3,7 +3,6 @@ import java.util.Arrays;
 import java.util.List;
 
 import winterwell.bob.BuildTask;
-import winterwell.bob.tasks.CompileTask;
 import winterwell.bob.tasks.CopyTask;
 import winterwell.bob.tasks.GitTask;
 import winterwell.bob.tasks.JarTask;
@@ -13,6 +12,7 @@ import winterwell.jtwitter.OAuthSignpostClient;
 import winterwell.jtwitter.Twitter;
 import winterwell.jtwitter.TwitterTest;
 import winterwell.utils.io.FileUtils;
+import winterwell.utils.reporting.Log;
 
 
 
@@ -117,10 +117,20 @@ public class BuildJTwitter extends BuildTask {
 				+" http://winterwell.com/software/jtwitter.php");
 		twitter.setStatus("Thanks to jake & Vicent @GitHub for awesome-grade customer service :)");
 
-		Twitter identica = new Twitter("jtwit", TwitterTest.TEST_PASSWORD);
-		identica.setAPIRootUrl("http://identi.ca/api");
-		identica.setStatus("Released a new version of JTwitter Java library: v"+Twitter.version
-				+" http://winterwell.com/software/jtwitter.php");
+		try {
+			Twitter identica = new Twitter("jtwit", TwitterTest.TEST_PASSWORD);
+			identica.setAPIRootUrl("http://identi.ca/api");
+			identica.setStatus("Released a new version of JTwitter Java library: v"+Twitter.version
+					+" http://winterwell.com/software/jtwitter.php");
+		} catch(Exception ex) {
+			// oh well
+			Log.e("build", ex);
+		}
+		
+//		// copy in utils lib		??
+//		utils = new File(FileUtils.getWinterwellDir(), "code/lib/winterwell.utils.jar")
+//		FileUtils.copy(utils, 
+//				new File("winterwell.utils.jar"));
 	}
 
 
